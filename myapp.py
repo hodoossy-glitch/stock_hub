@@ -1,6 +1,11 @@
 import streamlit as st
 import pandas as pd
 import FinanceDataReader as fdr
+from streamlit_autorefresh import st_autorefresh
+
+# 1분(60,000밀리초)마다 자동으로 앱을 다시 실행합니다.
+# 100번까지 새로고침하고 멈추도록 설정 (숫자는 조절 가능)
+count = st_autorefresh(interval=60000, limit=100, key="fscounter")
 
 st.set_page_config(page_title="황금키 프로", layout="wide")
 st.title("🔑 황금키 프로: 주도주 & 종배 스캐너")
@@ -61,3 +66,4 @@ if st.button(f'🔎 {mode} 스캔 시작'):
                 st.warning("조건에 맞는 종목이 현재 없습니다.")
         except Exception as e:
             st.error(f"오류가 발생했습니다: {e}")
+
