@@ -4,62 +4,77 @@ import FinanceDataReader as fdr
 from datetime import datetime, timedelta, timezone
 import time
 
-# 1. 페이지 설정
-st.set_page_config(page_title="황금키 긴급진단", layout="wide")
+# 1. HTS 스타일 페이지 설정
+st.set_page_config(page_title="황금키 HTS 프로", layout="wide")
 
-# 한국 시간 설정
+# 한국 시간(KST) 설정
 now = datetime.now(timezone(timedelta(hours=9)))
 
-st.title("📡 황금키 프로: 긴급 진단 모드")
-st.caption(f"현재 시각: {now.strftime('%H:%M:%S')} (데이터 서버 연결 시도 중)")
+# HTS 블랙 테마 및 디자인 적용
+st.markdown("""
+    <style>
+    .main { background-color: #0e1117; color: #ffffff; }
+    div[data-testid="stTable"] { background-color: #1e1e1e; }
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #262730; border-radius: 5px; color: white; padding: 8px 12px;
+    }
+    .stTabs [aria-selected="true"] { background-color: #ff4b4b; font-weight: bold; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# 상단 실시간 라이브 바
+st.markdown(f"""
+    <div style="background-color:#1e1e1e; padding:15px; border-radius:10px; border-left: 5px solid #ff4b4b; margin-bottom: 20px;">
+        <span style="color:#ff4b4b; font-size:22px; font-weight:bold;">📡 HTS LIVE: {now.strftime('%H:%M:%S')}</span>
+        <span style="color:#00ff00; font-size:14px; margin-left:15px;">● 실시간 우량주 감시 모드 가동 중</span>
+    </div>
+    """, unsafe_allow_html=True)
 
 with st.sidebar:
-    st.header("⚙️ 필터 조절")
-    min_marcap = st.number_input("최소 시총(억)", value=1000)
+    st.header("⚙️ HTS SETTINGS")
+    min_marcap = st.number_input("최소 시총(억)", value=5000)
+    st.divider()
+    st.caption("🛡️ 적자/위험/잡주 필터 가동 중")
+    st.info("💡 장중 로딩이 느리면 시총을 높여보세요.")
 
-# 2. 분석 엔진 (테스트용 유연한 조건)
+# 2. 고속 분석 엔진 (최종 최적화)
 try:
-    with st.spinner("데이터 강제 동기화 중..."):
-        # 전체 종목 리스트 호출
+    with st.spinner("전문가용 데이터 동기화 중..."):
         df_krx = fdr.StockListing('KRX')
-        
-        # 필터링: 시총 기준만 적용 (우선주 등은 제외)
+        # 시총 기준 및 HTS 제외 항목 필터링
         df_base = df_krx[
             (df_krx['Marcap'] >= (min_marcap * 100000000)) & 
-            (~df_krx['Name'].str.contains('우|스팩'))
-        ].head(50) # 상위 50개만 빠르게 테스트
+            (~df_krx['Name'].str.contains('우|스팩|관리|투자유의|정지|정리'))
+        ].head(60) # 핵심 종목 60개 집중 분석
 
-        results = []
+        s1, s2, s3, s4, s5, s6, s7, s8 = [], [], [], [], [], [], [], []
+
         for _, row in df_base.iterrows():
             try:
-                # 최근 10일치 데이터만 호출 (속도 극대화)
-                df = fdr.DataReader(row['Code'], (now - timedelta(days=15)).strftime('%Y-%m-%d'))
-                if df is None or len(df) < 2: continue
+                # 최근 20일치 데이터 호출
+                df = fdr.DataReader(row['Code'], (now - timedelta(days=20)).strftime('%Y-%m-%d'))
+                if df is None or len(df) < 5: continue
                 
-                last = df.iloc[-1]
-                prev = df.iloc[-2]
-                curr_p = int(last['Close'])
+                last, prev = df.iloc[-1], df.iloc[-2]
+                curr_p, amt_b = int(last['Close']), int(last['Amount'] / 1e8)
                 chg = ((curr_p - prev['Close']) / prev['Close']) * 100
-                
-                # 테스트를 위해 아주 완만한 조건 적용 (상승 중인 종목 모두 포착)
-                results.append({
-                    '종목명': row['Name'],
-                    '현재가': f"{curr_p:,}원",
-                    '등락률': f"{chg:+.2f}%",
-                    '거래대금': f"{int(last['Amount']/1e8)}억"
-                })
-                if len(results) >= 10: break
+                ma5, ma20 = df['Close'].tail(5).mean(), df['Close'].tail(20).mean()
+
+                # 정배열 필터 (5일선 > 20일선)
+                if ma5 < ma20: continue 
+
+                res = {'종목': row['Name'], '현재가': f"{curr_p:,}", '등락': f"{chg:+.2f}%", '거래대금': f"{amt_b}억"}
+
+                if chg >= 7 and amt_b >= 300: s1.append(res)
+                if 2 <= chg <= 5: s2.append(res)
+                if amt_b >= 1000: s3.append(res)
+                if curr_p >= df['High'].max(): s4.append(res)
+                if chg >= 20: s5.append(res)
+                if last['Volume'] >= prev['Volume'] * 2: s6.append(res)
+                if ma5 > ma20 * 1.03: s7.append(res)
+                if pd.to_datetime(row['ListingDate']) > (now - timedelta(days=365)): s8.append(res)
             except: continue
 
-    # 3. 결과 출력
-    if results:
-        st.success(f"✅ 시스템 정상! {len(results)}개 종목 포착 완료")
-        st.table(pd.DataFrame(results))
-    else:
-        st.warning("⚠️ 주말 데이터 서버 응답 지연 중. 월요일 장 시작 시 자동 복구됩니다.")
-
-except Exception as e:
-    st.error(f"서버 연결 오류: {e}")
-
-time.sleep(60)
-st.rerun()
+    # 3. 8대 전략 멀티탭 출력
+    t = st.tabs(["🔥단타",
