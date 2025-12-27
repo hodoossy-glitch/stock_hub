@@ -20,7 +20,10 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # 상단 실시간 전광판
-now = datetime.now()
+from datetime import datetime, timedelta, timezone
+
+# 한국 시간(UTC+9) 설정
+now = datetime.now(timezone(timedelta(hours=9)))
 st.markdown(f"""
     <div style="background-color:#1e1e1e; padding:15px; border-radius:10px; border-left: 5px solid #ff4b4b;">
         <span style="color:#ff4b4b; font-size:22px; font-weight:bold;">📡 HTS LIVE: {now.strftime('%H:%M:%S')}</span>
@@ -89,3 +92,4 @@ except Exception as e:
 # 4. 자동 새로고침
 time.sleep(60)
 st.rerun()
+
