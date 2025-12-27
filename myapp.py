@@ -1,27 +1,31 @@
 import streamlit as st
 import pandas as pd
-import os
+import FinanceDataReader as fdr
 
 st.set_page_config(page_title="황금키 프로", layout="wide")
-st.title("🔑 황금키 프로: 주도주 대시보드")
-st.markdown("### [시총 5천억↑ / 20일선 위 / 5일선 사수 / 정배열]")
+st.title("🔑 황금키 프로: 실시간 주도주 스캐너")
 
-if st.button('🔄 데이터 새로고침'):
-    st.rerun()
-
-try:
-    if os.path.exists('stock_scanner_result.html'):
-        df = pd.read_html('stock_scanner_result.html')[0]
+# 버튼이 있어야 실행됩니다!
+if st.button('🚀 실시간 주도주 스캔 시작'):
+    with st.spinner("데이터 분석 중..."):
+        # 12월 26일 금요일 데이터 기준 테스트
+        target_date = '2025-12-26' 
+        df_krx = fdr.StockListing('KRX')
+        df_krx = df_krx[df_krx['Marcap'] >= 500000000000] # 시총 5천억 이상
         
-        # 요약 카드
-        c1, c2, c3 = st.columns(3)
-        c1.metric("포착 종목수", f"{len(df)}개")
-        c2.metric("최고 거래대금", f"{df['거래대금(억)'].max()}억")
-        c3.metric("최대 시총", f"{df['시가총액(억)'].max()}억")
+        results = []
+        for _, row in df_krx.head(50).iterrows(): # 우선 50개만 테스트
+            try:
+                df = fdr.DataReader(row['Code'], '2025-11-01', target_date)
+                df['MA5'] = df['Close'].rolling(5).mean()
+                df['MA20'] = df['Close'].rolling(20).mean()
+                last = df.iloc[-1]
+                # 5일선 위 & 20일선 위 조건
+                if last['Close'] >= last['MA5'] and last['Close'] > last['MA20']:
+                    results.append({'종목명': row['Name'], '현재가': int(last['Close']), '거래대금(억)': int(last['Amount']/1e8)})
+            except: continue
         
-        # 결과 표
-        st.dataframe(df, use_container_width=True, height=500)
-    else:
-        st.warning("먼저 'python mystock.py'를 실행해 주세요.")
-except Exception as e:
-    st.error(f"오류 발생: {e}")
+        if results:
+            st.dataframe(pd.DataFrame(results), use_container_width=True)
+        else:
+            st.warning("조건에 맞는 종목이 없습니다. 잠시 후 다시 시도하세요.")
