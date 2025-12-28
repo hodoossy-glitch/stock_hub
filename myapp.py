@@ -68,21 +68,4 @@ with c2:
     st.markdown(f'<div class="m-header"><b>KOSDAQ 거래대금</b><br><span class="big-num">6.8 조</span><br><small>전일 마감 시황 기준</small></div>', unsafe_allow_html=True)
 with c3:
     n_p = nas_data['Close'] if nas_data is not None else 20452.25
-    st.markdown(f'<div class="m-header"><b>나스닥 선물</b><br><span style="font-size:20px; font-weight:bold; color:#ff4b4b;">{n_p:,.2f}</span><br><span style="color:#ff4b4b; font-size:12px;">▲ {n_c:.2f}%</span></div>', unsafe_allow_html=True)
-
-# --- 수급 현황 (개인/외인/기관) ---
-t1, t2 = mkt_trends.get("KOSPI", {}), mkt_trends.get("KOSDAQ", {})
-st.markdown(f"""
-    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-        <div class="trend-box" style="flex: 1;"><b>KOSPI 수급(억):</b> <span style="color:#0088ff">개인({t1.get('개인',0):+})</span> | <span style="color:#ff4b4b">외인({t1.get('외인',0):+})</span> | 기관({t1.get('기관',0):+})</div>
-        <div class="trend-box" style="flex: 1;"><b>KOSDAQ 수급(억):</b> <span style="color:#ff4b4b">개인({t2.get('개인',0):+})</span> | 외인({t2.get('외인',0):+}) | 기관({t2.get('기관',0):+})</div>
-    </div>
-""", unsafe_allow_html=True)
-
-st.divider()
-
-# --- [중단] 🔥 실시간 주도 섹터 & 뉴스 (9개 종목 격자) ---
-st.markdown("### 🔥 실시간 주도 섹터 & 뉴스")
-for s_name in ["반도체", "로봇", "바이오", "비철금속"]:
-    headline = get_live_news(s_name)
-    with st.expander(f"📂 {s_
+    st.markdown(f'<div class="m-header"><b>나스닥 선물</b><br><span style="font-size:20px; font-weight:bold; color:#ff4b4b;">{n_p:,.2f}</span><br><span style="color:#ff4b4b; font-size:12px;">▲ {n_c:.2f}%</span>
