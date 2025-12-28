@@ -8,7 +8,7 @@ import time
 st.set_page_config(page_title="황금키 통합 상황판", layout="wide", initial_sidebar_state="collapsed")
 now = datetime.now(timezone(timedelta(hours=9)))
 
-# CSS: 전문가용 디자인
+# CSS: 디자인 최적화
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
@@ -21,14 +21,13 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 엔진
+# 2. 데이터 호출 엔진
 @st.cache_data(ttl=10)
 def get_live_data():
     try:
         df = fdr.StockListing('KRX')
-        nas_df = fdr.DataReader('NQ=F')
-        nas_last = nas_df.iloc[-1]
-        return df, float(nas_last['Close']), float(nas_last['Chg']) * 100
+        nas_df = fdr.DataReader('NQ=F').iloc[-1]
+        return df, float(nas_df['Close']), float(nas_df['Chg']) * 100
     except:
         return pd.DataFrame(), 20452.25, 0.45
 
@@ -36,7 +35,7 @@ live_df, nas_p, nas_c = get_live_data()
 
 # 3. 상단 헤더: 실시간 시장 전광판
 st.markdown(f"### 📡 실시간 시장 전광판 ({now.strftime('%H:%M:%S')})")
-c1, c2, c3 = st.columns(3)
+c1, c2, c3 = st.columns([2, 2, 1])
 
 with c1:
     st.markdown(f"""<div class="m-header"><b>KOSPI 거래대금</b><br><span class="big-num">8.4 조</span><br>
@@ -47,7 +46,7 @@ with c2:
 with c3:
     color = "#ff4b4b" if nas_c >= 0 else "#0088ff"
     st.markdown(f"""<div class="m-header"><b>나스닥 선물</b><br>
-    <span style="font-size:28px; font-weight:bold; color:{color};">{nas_p:,.2f}</span><br>
+    <span style="font-size:24px; font-weight:bold; color:{color};">{nas_p:,.2f}</span><br>
     <span style="color:{color};">{'▲' if nas_c >= 0 else '▼'} {abs(nas_c):.2f}%</span></div>""", unsafe_allow_html=True)
 
 st.divider()
@@ -71,7 +70,7 @@ for s_name, s_news in sectors.items():
 
 st.divider()
 
-# 5. 하단: 거래대금 상위 주도주 (4%↑) - 복구 완료
+# 5. 하단: 거래대금 상위 주도주 (4%↑)
 st.markdown("### 💰 거래대금 상위 주도주 (4%↑)")
 if not live_df.empty:
     top_4 = live_df[live_df['ChangesRatio'] >= 4.0].sort_values('Amount', ascending=False).head(4)
@@ -81,4 +80,8 @@ if not live_df.empty:
         with col_stocks[idx]:
             st.markdown(f"""
                 <div class="stock-card" style="border-top: 4px solid #ff4b4b;">
-                    <div style="
+                    <div style="font-size:15px; font-weight:bold;">{s['Name']}</div>
+                    <div class="sector-tag">{s['Sector'] if pd.notna(s['Sector']) else '주도주'}</div>
+                    <div class="price-up">{int(s['Close']):,}원</div>
+                    <div style="display:flex; justify-content:space-between; font-size:12px; margin-top:5px;">
+                        <span style="color:#ff4b4b;">{
