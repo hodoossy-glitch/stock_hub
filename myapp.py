@@ -50,44 +50,4 @@ with tab1:
     with c2: st.markdown('<div class="m-header"><b>KOSDAQ</b><br><span class="big-num">872.45</span><br><small>▲ 0.29%</small></div>', unsafe_allow_html=True)
     with c3:
         n_p = nas_data['Close'] if nas_data is not None else 20452.25
-        st.markdown(f'<div class="m-header"><b>나스닥 선물</b><br><span style="font-size:20px; color:#ff4b4b;">{n_p:,.2f}</span><br><small>▲ {n_c:.2f}%</small></div>', unsafe_allow_html=True)
-    
-    st.divider()
-    st.markdown("### 🔥 실시간 주도 섹터 & 뉴스")
-    for s_name in ["반도체", "로봇", "바이오"]:
-        with st.expander(f"📂 {s_name} | 관련 실시간 뉴스 헤드라인 대기 중", expanded=True):
-            cols = st.columns(3)
-            s_stocks = live_df[live_df['Name'].str.contains(s_name, na=False)].sort_values('Amount', ascending=False).head(9)
-            # [에러 해결 지점] len()의 괄호를 확실히 닫고 콜론(:)을 붙여 문법을 완성했습니다.
-            for i in range(9):
-                with cols[i % 3]:
-                    if i < len(s_stocks):
-                        row = s_stocks.iloc[i]
-                        st.markdown(f'<div class="stock-card"><b>{row["Name"]}</b><br><span class="price-up">{int(row["Close"]):,}원</span><br><small>{row["ChangesRatio"]:+.1f}%</small></div>', unsafe_allow_html=True)
-
-# --- [탭 2] 대금상위 화면 (이미지 1: 컬러 리스트 스타일) ---
-with tab2:
-    st.markdown("### 💰 거래대금 상위 4%↑ 주도주")
-    # 선생님이 원하신 컬러 배경 리스트 디자인
-    top_stocks = [
-        ("삼성에피스", "바이오", "661,000", "+16.17%", "1.59조", "tag-bio"),
-        ("클로봇", "로봇", "65,200", "+26.85%", "9673억", "tag-robot"),
-        ("한화시스템", "우주항공", "53,100", "+10.51%", "3909억", "tag-aero"),
-        ("비에이치아이", "원전", "64,200", "+21.82%", "4882억", "tag-aero")
-    ]
-    for name, sector, price, chg, amt, tag in top_stocks:
-        st.markdown(f'<div class="leader-item {tag}"><div>{name} <small>{sector}</small></div><div>{price} ({chg})</div><div>{amt}</div></div>', unsafe_allow_html=True)
-    
-    st.divider()
-    # 개인 수급 데이터를 포함한 매매동향
-    st.markdown("### 📊 시장별 매매동향 (억)")
-    st.markdown('<div class="m-header">KOSPI: <span style="color:#0088ff">개인(-1245)</span> | <span style="color:#ff4b4b">외인(+1560)</span> | 기관(-315)</div>', unsafe_allow_html=True)
-
-# --- [탭 3 & 4] 캘린더 및 공시 (비워둠) ---
-with tab3:
-    st.info("📅 캘린더 데이터 준비 중입니다.")
-with tab4:
-    st.info("📢 주요 공지사항이 이곳에 표시됩니다.")
-
-time.sleep(10)
-st.rerun()
+        st.markdown(f'<div class
