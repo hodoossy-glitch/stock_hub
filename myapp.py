@@ -57,9 +57,8 @@ with tab1:
     for s_name in ["반도체", "로봇", "바이오"]:
         with st.expander(f"📂 {s_name} | 관련 실시간 뉴스 헤드라인 대기 중", expanded=True):
             cols = st.columns(3)
-            # 섹터별 종목 필터링
             s_stocks = live_df[live_df['Name'].str.contains(s_name, na=False)].sort_values('Amount', ascending=False).head(9)
-            # [에러 해결 지점] 괄호를 확실히 닫고 콜론(:)을 붙여 문법을 완성했습니다.
+            # [에러 해결 지점] len()의 괄호를 확실히 닫고 콜론(:)을 붙여 문법을 완성했습니다.
             for i in range(9):
                 with cols[i % 3]:
                     if i < len(s_stocks):
@@ -84,11 +83,11 @@ with tab2:
     st.markdown("### 📊 시장별 매매동향 (억)")
     st.markdown('<div class="m-header">KOSPI: <span style="color:#0088ff">개인(-1245)</span> | <span style="color:#ff4b4b">외인(+1560)</span> | 기관(-315)</div>', unsafe_allow_html=True)
 
-# --- [탭 3 & 4] 캘린더 및 공시 (나중에 필요할 때 추가) ---
+# --- [탭 3 & 4] 캘린더 및 공시 (비워둠) ---
 with tab3:
-    st.info("📅 캘린더 데이터는 장 시작 후 업데이트됩니다.")
+    st.info("📅 캘린더 데이터 준비 중입니다.")
 with tab4:
-    st.info("📢 실시간 주요 공시사항이 이곳에 표시됩니다.")
+    st.info("📢 주요 공지사항이 이곳에 표시됩니다.")
 
 time.sleep(10)
 st.rerun()
