@@ -5,13 +5,14 @@ import plotly.graph_objects as go
 from datetime import datetime, timezone, timedelta
 import time
 
-# 1. 디자인 및 모드 전환 (우측 상단 초소형 버튼)
+# 1. 페이지 설정 및 디자인 (기존 다크 틀 보존)
 st.set_page_config(page_title="딱-뉴스 황금키", layout="wide", initial_sidebar_state="collapsed")
 now = datetime.now(timezone(timedelta(hours=9)))
 
 if 'dark_mode' not in st.session_state:
     st.session_state.dark_mode = True
 
+# 테마 색상 변수 설정
 bg_color = "#0e1117" if st.session_state.dark_mode else "#ffffff"
 text_color = "#ffffff" if st.session_state.dark_mode else "#222222"
 header_bg = "#1c2128" if st.session_state.dark_mode else "#f8f9fa"
@@ -28,17 +29,14 @@ st.markdown(f"""
     }}
     .m-header {{ background-color: {header_bg}; padding: 10px; border-radius: 12px; border: 1px solid {border_color}; text-align: center; margin-bottom: 5px; }}
     .big-num {{ font-size: 24px; font-weight: bold; color: #ff4b4b; }}
-    .supply-row {{ font-size: 11px; display: flex; justify-content: center; gap: 8px; margin-top: 5px; border-top: 1px solid {border_color}; padding-top: 5px; }}
     .stock-card {{ background-color: {card_bg}; padding: 10px; border-radius: 10px; border: 1px solid {border_color}; text-align: center; min-height: 100px; }}
     .price-up {{ color: #ff4b4b; font-weight: bold; font-size: 16px; }}
     .amt-label {{ color: #888888; font-size: 10px; display: block; margin-top: 4px; }}
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 실시간 데이터 수집 엔진 (9시 개장 대응)
+# 2. 실시간 데이터 수집 엔진 (에러 수정 완료)
 @st.cache_data(ttl=3)
 def fetch_market_realtime():
     try:
-        # 전 종목 리스트 실시간 긁기
-        df = fdr.StockListing('KRX')
-        for col in ['ChangesRatio', 'Ch
+        # 전 종목 리스트
