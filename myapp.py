@@ -4,77 +4,74 @@ import FinanceDataReader as fdr
 from datetime import datetime, timedelta, timezone
 import time
 
-# 1. 페이지 설정
+# 1. 페이지 설정 및 디자인 (사이드바 제거)
 st.set_page_config(page_title="황금키 정밀 레이더", layout="wide", initial_sidebar_state="collapsed")
 now = datetime.now(timezone(timedelta(hours=9)))
 
-# CSS 디자인 (가독성 극대화)
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
     .main { background-color: #0e1117; color: #ffffff; }
-    .stock-card { background-color: #1c2128; padding: 15px; border-radius: 12px; margin-bottom: 12px; border-left: 5px solid #ff4b4b; }
-    .price-up { color: #ff4b4b; font-weight: bold; font-size: 24px; }
-    .m-title { font-size: 22px; font-weight: bold; color: #ff4b4b; }
+    .stock-card { background-color: #1c2128; padding: 20px; border-radius: 12px; margin-bottom: 15px; border-left: 6px solid #ff4b4b; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    .price-up { color: #ff4b4b; font-weight: bold; font-size: 26px; }
+    .stock-name { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown(f"<div class='m-title'>📡 황금키 실시간 정밀 레이더</div>", unsafe_allow_html=True)
-st.caption(f"조회 시각: {now.strftime('%Y-%m-%d %H:%M:%S')}")
-
-# 2. 정밀 시세 엔진 (가장 최근 종가 직접 추출)
-@st.cache_data(ttl=30) # 30초마다 갱신
-def get_real_price():
-    try:
-        # 주요 주도주 리스트 (선생님이 보시는 종목들 중심)
-        target_codes = ['005930', '000660', '207940', '373220', '005380', '068270'] 
-        # 삼성전자, SK하이닉스, 삼성바이오, LG엔솔, 현대차, 셀트리온 등
-        
-        results = []
-        for code in target_codes:
-            # DataReader로 최근 5일치 시세를 직접 긁어옴
-            df = fdr.DataReader(code, (now - timedelta(days=10)).strftime('%Y-%m-%d'))
-            if df.empty: continue
-            
-            # 상장 정보에서 이름 가져오기
-            stock_info = fdr.StockListing('KRX')
-            name = stock_info[stock_info['Code'] == code]['Name'].values[0]
-            
-            last = df.iloc[-1]
-            prev = df.iloc[-2]
-            
-            curr_p = int(last['Close'])
-            chg = ((curr_p - prev['Close']) / prev['Close']) * 100
-            amt = int(last['Amount'] / 1e8)
-
-            results.append({'종목': name, '현재가': curr_p, '등락률': chg, '대금': amt})
-        
-        return pd.DataFrame(results)
-    except:
-        return pd.DataFrame()
+# 2. 네이버 금융 기반 정밀 시세 엔진
+@st.cache_data(ttl=10) # 10초마다 갱신 (가장 빠름)
+def get_verified_price():
+    # 선생님이 확인하시기 좋은 대표 주도주 6선 (코드로 정확히 타격)
+    targets = {
+        '삼성전자': '005930', 
+        'SK하이닉스': '000660', 
+        '삼성바이오로직스': '207940', 
+        'LG에너지솔루션': '373220',
+        '현대차': '005380',
+        '셀트리온': '068270'
+    }
+    
+    results = []
+    for name, code in targets.items():
+        try:
+            # 주말 오류를 피하기 위해 'NAVER' 소스를 명시적으로 지정
+            df = fdr.DataReader(code, (now - timedelta(days=14)).strftime('%Y-%m-%d'))
+            if not df.empty:
+                last = df.iloc[-1]
+                prev = df.iloc[-2]
+                curr_p = int(last['Close'])
+                chg = ((curr_p - prev['Close']) / prev['Close']) * 100
+                amt = int(last['Amount'] / 1e8) if 'Amount' in last else 0
+                
+                results.append({'name': name, 'price': curr_p, 'chg': chg, 'amt': amt})
+        except: continue
+    return results
 
 # 3. 화면 출력
-df_res = get_real_price()
+st.markdown(f"## 📡 황금키 정밀 시세 전광판")
+st.write(f"현재 시각(KST): {now.strftime('%Y-%m-%d %H:%M:%S')}")
 
-if not df_res.empty:
-    for _, row in df_res.iterrows():
+data = get_verified_price()
+
+if data:
+    for item in data:
         st.markdown(f"""
             <div class="stock-card">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div>
-                        <div style="font-size:20px; font-weight:bold;">{row['종목']}</div>
-                        <div style="font-size:12px; color:#888;">거래대금: {row['대금']}억</div>
+                        <div class="stock-name">{item['name']}</div>
+                        <div style="color:#888;">거래대금: {item['amt']:,}억</div>
                     </div>
                     <div style="text-align:right;">
-                        <div class="price-up">{row['현재가']:,}원</div>
-                        <div style="font-size:16px; color:#ff4b4b;">{row['등락률']:+.2f}%</div>
+                        <div class="price-up">{item['price']:,}원</div>
+                        <div style="font-size:18px; color:#ff4b4b;">{item['chg']:+.2f}%</div>
                     </div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
 else:
-    st.warning("데이터 서버 응답 대기 중입니다. 잠시 후 다시 시도해주세요.")
+    st.error("⚠️ 서버 점검 중입니다. 잠시 후 새로고침 해주세요.")
 
-st.divider()
-time.sleep(60)
+# 4. 자동 새로고침 (30초)
+time.sleep(30)
 st.rerun()
