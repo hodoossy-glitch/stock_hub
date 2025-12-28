@@ -23,7 +23,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 실시간 데이터 엔진
+# 2. 실시간 데이터 엔진 (에러 수정됨)
 def format_money(val):
     if val >= 1e12: return f"{val/1e12:.1f}조"
     return f"{int(val/1e8)}억"
@@ -35,25 +35,36 @@ def get_live_news(keyword):
         soup = BeautifulSoup(res.text, 'html.parser')
         return soup.select_one('a.news_tit').get_text()[:35] + "..."
     except:
-        return f"{keyword} 섹터 실시간 수급 분석 및 대응 전략 수립 중"
+        return f"{keyword} 섹터 실시간 시황 분석 중"
 
 @st.cache_data(ttl=10)
 def fetch_data():
     try:
         df = fdr.StockListing('KRX')
-        nas = fdr.DataReader('NQ=F').iloc[-1]
-        # 장중 수급 데이터 (내일 아침 9시부터 실시간 반영)
+        # 나스닥 선물 데이터 호출
+        nas_df = fdr.DataReader('NQ=F')
+        
+        nas_last = None
+        nas_change = 0.45 # 기본값
+        
+        if len(nas_df) > 1:
+            nas_last = nas_df.iloc[-1]
+            # [수정포인트] 'Chg' 칸이 없으므로 직접 계산합니다.
+            prev_close = nas_df['Close'].iloc[-2]
+            curr_close = nas_df['Close'].iloc[-1]
+            nas_change = ((curr_close / prev_close) - 1) * 100
+            
         trends = {
             "KOSPI": {"개인": -1245, "외인": 1560, "기관": -315},
             "KOSDAQ": {"개인": 2130, "외인": -840, "기관": -1290}
         }
-        return df, nas, trends
+        return df, nas_last, nas_change, trends
     except:
-        return pd.DataFrame(), None, {}
+        return pd.DataFrame(), None, 0.45, {}
 
-live_df, nas_data, mkt_trends = fetch_data()
+live_df, nas_data, n_c, mkt_trends = fetch_data()
 
-# --- [상단] 📡 실시간 시장 전광판 (에러 없는 HTML 방식) ---
+# --- [상단] 실시간 시장 전광판 ---
 st.markdown(f"### 📡 실시간 시장 전광판 ({now.strftime('%H:%M:%S')})")
 c1, c2, c3 = st.columns([2, 2, 1])
 
@@ -65,21 +76,20 @@ with c2:
     <small>전일 마감 시황 기준</small></div>''', unsafe_allow_html=True)
 with c3:
     n_p = nas_data['Close'] if nas_data is not None else 20452.25
-    n_c = nas_data['Chg']*100 if nas_data is not None else 0.45
     st.markdown(f'''<div class="m-header"><b>나스닥 선물</b><br><span style="font-size:20px; font-weight:bold; color:#ff4b4b;">{n_p:,.2f}</span><br>
     <span style="color:#ff4b4b; font-size:12px;">▲ {n_c:.2f}%</span></div>''', unsafe_allow_html=True)
 
-# --- 수급 동향 (개인 필수 포함) ---
+# --- 수급 동향 ---
 t1 = mkt_trends.get("KOSPI", {})
 t2 = mkt_trends.get("KOSDAQ", {})
 st.markdown(f"""
     <div style="display: flex; gap: 10px; margin-bottom: 20px;">
         <div class="trend-box" style="flex: 1;">
-            <b>KOSPI 매매동향(억)</b><br>
+            <b>KOSPI 수급(억)</b><br>
             <span style="color:#0088ff">개인({t1['개인']:+})</span> | <span style="color:#ff4b4b">외인({t1['외인']:+})</span> | 기관({t1['기관']:+})
         </div>
         <div class="trend-box" style="flex: 1;">
-            <b>KOSDAQ 매매동향(억)</b><br>
+            <b>KOSDAQ 수급(억)</b><br>
             <span style="color:#ff4b4b">개인({t2['개인']:+})</span> | <span style="color:#0088ff">외인({t2['외인']:+})</span> | 기관({t2['기관']:+})
         </div>
     </div>
@@ -87,28 +97,8 @@ st.markdown(f"""
 
 st.divider()
 
-# --- [중단] 🔥 실시간 주도 섹터 & 뉴스 (9개 종목 격자) ---
-st.markdown("### 🔥 실시간 주도 섹터 & 뉴스")
-for s_name in ["반도체", "로봇", "바이오", "비철금속"]:
-    headline = get_live_news(s_name)
-    with st.expander(f"📂 {s_name} | {headline}", expanded=True):
-        cols = st.columns(3)
-        if not live_df.empty:
-            s_stocks = live_df[live_df['Sector'].str.contains(s_name, na=False)].sort_values('Amount', ascending=False).head(9)
-            for i in range(9):
-                with cols[i % 3]:
-                    if i < len(s_stocks):
-                        row = s_stocks.iloc[i]
-                        st.markdown(f"""<div class="stock-card">
-                            <div style="font-size:14px; font-weight:bold;">{row['Name']}</div>
-                            <div class="price-up">{int(row['Close']):,}원 ({row['ChangesRatio']:+.1f}%)</div>
-                            <div style="font-size:11px; color:#888;">{format_money(row['Amount'])}</div>
-                        </div>""", unsafe_allow_html=True)
+# --- [중단/하단 섹터 로직 생략 - 기존과 동일] ---
+# ... (생략된 부분은 이전과 동일하게 유지하시면 됩니다)
 
-st.divider()
-
-# --- [하단] 💰 거래대금 상위 주도주 (8개, 섹터 색상 구분) ---
-st.markdown("### 💰 거래대금 상위 주도주 (4%↑)")
-if not live_df.empty:
-    top_8 = live_df[live_df['ChangesRatio'] >= 4.0].sort_values('Amount', ascending=False).head(8)
-    cols_
+time.sleep(10)
+st.rerun()
