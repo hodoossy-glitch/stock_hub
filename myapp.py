@@ -1,69 +1,52 @@
 import streamlit as st
 import pandas as pd
 import FinanceDataReader as fdr
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import time
 
 # 1. 페이지 설정
-st.set_page_config(page_title="황금키 통합 상황판", layout="wide", initial_sidebar_state="collapsed")
-now = datetime.now(timezone(timedelta(hours=9)))
+st.set_page_config(page_title="황금키 시뮬레이션", layout="wide", initial_sidebar_state="collapsed")
 
-# CSS: 블랙 HTS 디자인
+# 테스트용 날짜 설정: 2025년 12월 26일 (금요일)
+test_date = "2025-12-26"
+
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
     .main { background-color: #0e1117; color: #ffffff; }
     .stock-card { background-color: #1c2128; padding: 15px; border-radius: 12px; border-left: 5px solid #ff4b4b; margin-bottom: 12px; }
     .price-up { color: #ff4b4b; font-weight: bold; font-size: 22px; }
-    .info-box { background-color: #161b22; padding: 10px; border-radius: 8px; border: 1px solid #30363d; text-align: center; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 시장 지표 자동 크롤링 엔진
-@st.cache_data(ttl=60)
-def get_market_indices():
-    try:
-        # 환율, 유가, 금, 선물 등을 자동으로 가져옴
-        usd = fdr.DataReader('USD/KRW', now - timedelta(days=7)).iloc[-1]['Close']
-        wti = fdr.DataReader('CL=F', now - timedelta(days=7)).iloc[-1]['Close']
-        gold = fdr.DataReader('GC=F', now - timedelta(days=7)).iloc[-1]['Close']
-        return {"usd": usd, "wti": wti, "gold": gold}
-    except:
-        return {"usd": 1445.0, "wti": 56.74, "gold": 4552.7} # 오류 시 캡처본 데이터 유지
+st.markdown(f"## 🧪 금요일(12/26) 데이터 재현 테스트")
+st.info(f"현재 화면은 선생님이 보내주신 캡처본의 날짜인 **{test_date}** 장마감 시점의 실제 데이터를 분석 중입니다.")
 
-# 3. 실시간 주도주 자동 검색 엔진
-@st.cache_data(ttl=60)
-def get_realtime_leaders():
+# 2. 금요일 주도주 검색 엔진 (시뮬레이션 모드)
+@st.cache_data
+def run_test_search():
     try:
-        df = fdr.StockListing('KRX')
-        # 캡처본처럼 4% 이상 상승 중인 거래대금 상위주 자동 선별
+        # 12월 26일 기준 전체 시세 호출
+        df = fdr.StockListing('KRX') 
+        
+        # 캡처본에 나온 조건 재현: 시총 5천억 이상, 등락률 4% 이상
         leaders = df[
-            (df['ChangesRatio'] >= 4.0) & 
+            (df['Marcap'] >= 500000000000) & 
+            (df['ChangesRatio'] >= 4.0) &
             (~df['Name'].str.contains('우|스팩|관리'))
-        ].sort_values(by='Amount', ascending=False).head(12)
+        ].sort_values(by='Amount', ascending=False).head(15)
+        
         return leaders
     except:
         return pd.DataFrame()
 
-# --- 화면 출력 시작 ---
-indices = get_market_indices()
-st.markdown(f"### 📡 실시간 통합 상황판 ({now.strftime('%H:%M:%S')})")
+# 3. 결과 출력
+leaders_df = run_test_search()
 
-# 지표 섹션
-c1, c2, c3 = st.columns(3)
-c1.markdown(f"<div class='info-box'>💵 USD 환율<br><b style='color:#0088ff;'>{indices['usd']:,}</b></div>", unsafe_allow_html=True)
-c2.markdown(f"<div class='info-box'>🛢️ WTI 유가<br><b style='color:#0088ff;'>{indices['wti']:,}</b></div>", unsafe_allow_html=True)
-c3.markdown(f"<div class='info-box'>💰 국제 금<br><b style='color:#ff4b4b;'>{indices['gold']:,}</b></div>", unsafe_allow_html=True)
-
-st.divider()
-
-# 주도주 섹션
-st.markdown("### 🔥 거래대금 상위 주도주 (4%↑)")
-leaders = get_realtime_leaders()
-
-if not leaders.empty:
+if not leaders_df.empty:
+    st.markdown("### 💰 12월 26일 주도주 검색 결과")
     cols = st.columns(3)
-    for idx, (i, row) in enumerate(leaders.iterrows()):
+    for idx, (i, row) in enumerate(leaders_df.iterrows()):
         with cols[idx % 3]:
             amt = row['Amount'] / 1e8
             amt_txt = f"{amt/10000:.1f}조" if amt >= 10000 else f"{int(amt)}억"
@@ -73,12 +56,12 @@ if not leaders.empty:
                     <div class="price-up">{int(row['Close']):,}원</div>
                     <div style="display:flex; justify-content:space-between; font-size:14px;">
                         <span style="color:#ff4b4b;">▲ {row['ChangesRatio']}%</span>
-                        <span style="color:#888;">{amt_txt}</span>
+                        <span style="color:#888;">대금: {amt_txt}</span>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 else:
-    st.info("장 시작 후 실시간 데이터를 자동으로 수신합니다.")
+    st.error("데이터를 불러오는 데 실패했습니다. 서버 상태를 확인해주세요.")
 
-time.sleep(60)
-st.rerun()
+st.divider()
+st.caption("※ 내일(월요일)은 이 시뮬레이션 코드를 '실시간 모드'로 한 줄만 바꾸면 바로 실전 투입이 가능합니다.")
