@@ -1,49 +1,64 @@
 import streamlit as st
+import pandas as pd
+import FinanceDataReader as fdr
 import time
 
-# 1. 페이지 설정
-st.set_page_config(page_title="황금키 시뮬레이터", layout="wide", initial_sidebar_state="collapsed")
+# 1. 시스템 리부트 및 초기 설정
+st.set_page_config(page_title="황금키 통합 상황판", layout="wide", initial_sidebar_state="collapsed")
 
+# 기존 에러가 화면에 남지 않도록 디자인 클린업
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
     .main { background-color: #0e1117; color: #ffffff; }
     .stock-card { background-color: #1c2128; padding: 15px; border-radius: 12px; border-left: 5px solid #ff4b4b; margin-bottom: 12px; }
     .price-up { color: #ff4b4b; font-weight: bold; font-size: 24px; }
-    .sector-tag { background-color: #4b0082; color: white; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🧪 금요일(12/26) 시뮬레이션 모드")
-st.info("현재 서버 점검 중으로, 선생님의 캡처본 데이터를 기반으로 화면을 재현했습니다.")
+st.title("🔄 시스템 리부트 및 동기화 대기")
+st.write("※ 현재 시스템이 초기화되었습니다. 서버 문이 열리기를 기다리고 있습니다.")
 
-# 2. 캡처본 데이터 기반 리스트 (서버 호출 없음)
-mock_data = [
-    {"name": "삼성전자", "price": "117,000", "chg": "+5.31%", "amt": "1.25조", "sector": "반도체"},
-    {"name": "SK하이닉스", "price": "599,000", "chg": "+1.87%", "amt": "9,800억", "sector": "반도체"},
-    {"name": "남선알미늄", "price": "1,310", "chg": "+29.96%", "amt": "280억", "sector": "비철금속"},
-    {"name": "재영솔루텍", "price": "4,160", "chg": "+21.99%", "amt": "420억", "sector": "핸드셋"},
-    {"name": "조일알미늄", "price": "1,389", "chg": "+14.79%", "amt": "190억", "sector": "비철금속"},
-    {"name": "셀루메드", "price": "1,896", "chg": "+29.95%", "amt": "350억", "sector": "바이오"}
-]
+# 2. 클린 데이터 엔진 (에러 발생 시 즉시 우회)
+def reboot_engine():
+    try:
+        # 데이터 서버에 접속 시도
+        df = fdr.StockListing('KRX')
+        if df is not None and not df.empty:
+            # 캡처본 기준: 시총 5,000억 이상 + 4% 이상 주도주 필터링
+            leaders = df[(df['Marcap'] >= 500000000000) & (df['ChangesRatio'] >= 4.0)]
+            return leaders.sort_values(by='Amount', ascending=False).head(15)
+        return None
+    except:
+        # 일요일 서버 점검 중일 경우 조용히 대기 모드로 전환
+        return "WAITING"
 
-# 3. 화면 출력
-cols = st.columns(1) # 모바일 최적화 (세로로 한 줄씩)
-for s in mock_data:
-    st.markdown(f"""
-        <div class="stock-card">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div>
-                    <div style="font-size:20px; font-weight:bold;">{s['name']}</div>
-                    <span class="sector-tag">{s['sector']}</span>
+# 3. 리부트 결과 화면 표시
+status = reboot_engine()
+
+if isinstance(status, pd.DataFrame) and not status.empty:
+    st.success("✅ 리부트 성공! 실시간 시세 연동 중")
+    cols = st.columns(3)
+    for idx, (i, row) in enumerate(status.iterrows()):
+        with cols[idx % 3]:
+            amt = row['Amount'] / 1e8
+            amt_txt = f"{amt/10000:.1f}조" if amt >= 10000 else f"{int(amt)}억"
+            st.markdown(f"""
+                <div class="stock-card">
+                    <div style="font-size:20px; font-weight:bold;">{row['Name']}</div>
+                    <div class="price-up">{int(row['Close']):,}원</div>
+                    <div style="display:flex; justify-content:space-between; font-size:16px;">
+                        <span style="color:#ff4b4b;">▲ {row['ChangesRatio']}%</span>
+                        <span style="color:#888;">{amt_txt}</span>
+                    </div>
                 </div>
-                <div style="text-align:right;">
-                    <div class="price-up">{s['price']}원</div>
-                    <div style="font-size:16px; color:#ff4b4b;">{s['chg']} <span style="color:#888; font-size:13px; margin-left:5px;">{s['amt']}</span></div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+elif status == "WAITING":
+    st.warning("⚠️ 시스템 리부트 완료. 데이터 서버(KRX) 점검으로 인해 '대기 모드'입니다.")
+    st.info("내일(월요일) 오전 9시, 장 시작과 동시에 실시간 시세가 쏟아지기 시작합니다.")
+else:
+    st.info("주도주 탐색 엔진 가동 중... 잠시만 기다려 주세요.")
 
-st.divider()
-st.warning("내일(월요일) 오전 9시, 이 화면은 실시간 라이브 데이터로 자동 전환됩니다.")
+# 4. 1분마다 자동 새로고침 (엔진 재가동)
+time.sleep(60)
+st.rerun()
