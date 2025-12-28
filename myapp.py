@@ -1,63 +1,49 @@
 import streamlit as st
-import pandas as pd
-import FinanceDataReader as fdr
 import time
 
 # 1. 페이지 설정
-st.set_page_config(page_title="황금키 실시간 레이더", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="황금키 시뮬레이터", layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
     .main { background-color: #0e1117; color: #ffffff; }
     .stock-card { background-color: #1c2128; padding: 15px; border-radius: 12px; border-left: 5px solid #ff4b4b; margin-bottom: 12px; }
-    .price-up { color: #ff4b4b; font-weight: bold; font-size: 22px; }
+    .price-up { color: #ff4b4b; font-weight: bold; font-size: 24px; }
+    .sector-tag { background-color: #4b0082; color: white; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("📡 황금키 실시간 주도주 레이더")
+st.title("🧪 금요일(12/26) 시뮬레이션 모드")
+st.info("현재 서버 점검 중으로, 선생님의 캡처본 데이터를 기반으로 화면을 재현했습니다.")
 
-# 2. 오류 발생 시 '빈 데이터' 대신 '안내 메시지'를 돌려주는 함수
-def get_data_safely():
-    try:
-        # 데이터 서버 호출 시도
-        df = fdr.StockListing('KRX')
-        if df is not None and not df.empty:
-            # 시총 5,000억 이상 + 4% 이상 상승주 필터링
-            leaders = df[(df['Marcap'] >= 500000000000) & (df['ChangesRatio'] >= 4.0)]
-            return leaders.sort_values(by='Amount', ascending=False).head(15)
-        return pd.DataFrame() # 데이터가 비어있으면 빈 표 반환
-    except Exception:
-        # 서버 점검 중일 때 발생하는 모든 오류를 무시함
-        return "CHECKING"
+# 2. 캡처본 데이터 기반 리스트 (서버 호출 없음)
+mock_data = [
+    {"name": "삼성전자", "price": "117,000", "chg": "+5.31%", "amt": "1.25조", "sector": "반도체"},
+    {"name": "SK하이닉스", "price": "599,000", "chg": "+1.87%", "amt": "9,800억", "sector": "반도체"},
+    {"name": "남선알미늄", "price": "1,310", "chg": "+29.96%", "amt": "280억", "sector": "비철금속"},
+    {"name": "재영솔루텍", "price": "4,160", "chg": "+21.99%", "amt": "420억", "sector": "핸드셋"},
+    {"name": "조일알미늄", "price": "1,389", "chg": "+14.79%", "amt": "190억", "sector": "비철금속"},
+    {"name": "셀루메드", "price": "1,896", "chg": "+29.95%", "amt": "350억", "sector": "바이오"}
+]
 
-# 3. 화면 표시
-result = get_data_safely()
+# 3. 화면 출력
+cols = st.columns(1) # 모바일 최적화 (세로로 한 줄씩)
+for s in mock_data:
+    st.markdown(f"""
+        <div class="stock-card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div style="font-size:20px; font-weight:bold;">{s['name']}</div>
+                    <span class="sector-tag">{s['sector']}</span>
+                </div>
+                <div style="text-align:right;">
+                    <div class="price-up">{s['price']}원</div>
+                    <div style="font-size:16px; color:#ff4b4b;">{s['chg']} <span style="color:#888; font-size:13px; margin-left:5px;">{s['amt']}</span></div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-if isinstance(result, pd.DataFrame):
-    if not result.empty:
-        cols = st.columns(3)
-        for idx, (i, row) in enumerate(result.iterrows()):
-            with cols[idx % 3]:
-                amt = row['Amount'] / 1e8
-                amt_txt = f"{amt/10000:.1f}조" if amt >= 10000 else f"{int(amt)}억"
-                st.markdown(f"""
-                    <div class="stock-card">
-                        <div style="font-size:18px; font-weight:bold;">{row['Name']}</div>
-                        <div class="price-up">{int(row['Close']):,}원</div>
-                        <div style="display:flex; justify-content:space-between; font-size:14px;">
-                            <span style="color:#ff4b4b;">▲ {row['ChangesRatio']}%</span>
-                            <span style="color:#888;">대금: {amt_txt}</span>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-    else:
-        st.info("⌛ 현재 조건에 맞는 주도주를 탐색 중입니다.")
-else:
-    # 서버 오류(일요일 점검) 시 출력되는 메시지
-    st.warning("⚠️ 데이터 서버(KRX) 점검 중으로 실시간 조회가 지연되고 있습니다.")
-    st.info("내일(월요일) 오전 9시, 장 시작과 함께 자동으로 가격이 동기화됩니다.")
-
-# 자동 새로고침
-time.sleep(60)
-st.rerun()
+st.divider()
+st.warning("내일(월요일) 오전 9시, 이 화면은 실시간 라이브 데이터로 자동 전환됩니다.")
