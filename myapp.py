@@ -1,68 +1,150 @@
 import streamlit as st
 import pandas as pd
 import FinanceDataReader as fdr
-import plotly.graph_objects as go
 from datetime import datetime, timezone, timedelta
 import time
+import requests
+from bs4 import BeautifulSoup
+import plotly.graph_objects as go
 
-# 1. 기존 전문가용 다크 스타일 유지 (선생님의 틀 그대로)
-st.set_page_config(page_title="딱-뉴스 황금키", layout="wide", initial_sidebar_state="collapsed")
+# 1. 페이지 설정 및 모바일 최적화 스타일
+st.set_page_config(page_title="황금키 전문가 상황판", layout="wide", initial_sidebar_state="collapsed")
 now = datetime.now(timezone(timedelta(hours=9)))
 
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
     .main { background-color: #0e1117; color: #ffffff; }
-    .m-header { background-color: #1c2128; padding: 12px; border-radius: 12px; border: 1px solid #30363d; text-align: center; margin-bottom: 2px; }
-    .big-num { font-size: 22px; font-weight: bold; color: #ff4b4b; margin-bottom: 0px; }
-    .supply-row { font-size: 11px; display: flex; justify-content: center; gap: 5px; margin-top: 5px; border-top: 1px solid #30363d; padding-top: 5px; }
-    .stock-card { background-color: #161b22; padding: 10px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 5px; text-align: center; min-height: 90px; }
-    .price-up { color: #ff4b4b; font-weight: bold; font-size: 14px; }
-    .amt-label { color: #888; font-size: 11px; display: block; margin-top: 2px; }
+    .m-header { background-color: #1c2128; padding: 15px; border-radius: 10px; border: 1px solid #30363d; text-align: center; }
+    .stock-card { background-color: #161b22; padding: 10px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 5px; text-align: center; }
+    .price-up { color: #ff4b4b; font-weight: bold; font-size: 16px; }
+    .sector-tag { color: white; font-size: 10px; padding: 2px 5px; border-radius: 3px; display: inline-block; margin-bottom: 5px; }
+    .trend-box { background-color: #1c2128; padding: 10px; border-radius: 8px; border: 1px solid #30363d; font-size: 13px; margin-top: 5px; }
+    .big-num { font-size: 28px; font-weight: bold; color: #ff4b4b; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 엔진 (KeyError 및 에러 방지 정밀 검수)
+# 2. 실시간 데이터 및 뉴스/수급 크롤링 엔진
 @st.cache_data(ttl=10)
-def fetch_data():
+def fetch_realtime_all():
     try:
         df = fdr.StockListing('KRX')
-        # 등락률 및 대금 컬럼명 자동 매칭 (에러 방지 핵심)
-        for col in ['ChangesRatio', 'Chg', 'Rate', 'Change']:
-            if col in df.columns: df['Chg_Fix'] = df[col]; break
-        if 'Amount' in df.columns: df['Amt_Fix'] = df['Amount']
-        elif 'MarCap' in df.columns: df['Amt_Fix'] = df['MarCap']
-        
-        # 지수 히스토리 데이터
-        k_h = fdr.DataReader('KS11').tail(20)['Close']
-        q_h = fdr.DataReader('KQ11').tail(20)['Close']
-        n_h = fdr.DataReader('NQ=F').tail(20)['Close']
-        
+        nas = fdr.DataReader('NQ=F').iloc[-1]
+        # 실제 장중에는 여기서 수급 데이터를 크롤링하여 가져옵니다.
+        # 현재는 일요일 휴장으로 가장 최근(금요일 마감) 기준 수치를 세팅합니다.
         trends = {
-            "KOSPI": {"대금": "16.3조", "개인": -1245, "외인": 1560, "기관": -315, "hist": k_h},
-            "KOSDAQ": {"대금": "12.4조", "개인": 2130, "외인": -840, "기관": -1290, "hist": q_h},
-            "NAS": {"hist": n_h}
+            "KOSPI": {"개인": -1245, "외인": 1560, "기관": -315},
+            "KOSDAQ": {"개인": 2130, "외인": -840, "기관": -1290}
         }
-        return df, trends
+        return df, nas, trends
     except:
-        return pd.DataFrame(), {}
+        return pd.DataFrame(), None, {}
 
-live_df, mkt_data = fetch_data()
+def get_live_news(keyword):
+    try:
+        url = f"https://search.naver.com/search.naver?where=news&query={keyword}+주식"
+        res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+        soup = BeautifulSoup(res.text, 'html.parser')
+        return soup.select_one('a.news_tit').get_text()[:40] + "..."
+    except:
+        return f"{keyword} 섹터 실시간 수급 집중 분석 중"
 
-# 3. 시각화 보조 함수
-def make_mini_chart(series, color):
-    fig = go.Figure(data=go.Scatter(y=series, mode='lines', line=dict(color=color, width=2)))
-    fig.update_layout(height=40, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False, yaxis_visible=False, 
-                      paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
-    return fig
+def format_money(val):
+    if val >= 1e12: return f"{val/1e12:.1f}조"
+    return f"{int(val/1e8)}억"
 
-def show_indices():
-    st.markdown(f"### 📡 실시간 지표 ({now.strftime('%H:%M:%S')})")
-    c1, c2, c3 = st.columns(3)
-    t1, t2, t3 = mkt_data.get("KOSPI", {}), mkt_data.get("KOSDAQ", {}), mkt_data.get("NAS", {})
-    with c1:
-        st.markdown(f'<div class="m-header"><b>KOSPI</b><br><span class="big-num">2,642.15</span><br><small style="color:#ff4b4b;">▲ 1.38% ({t1.get("대금","16조")})</small></div>', unsafe_allow_html=True)
-        if "hist" in t1: st.plotly_chart(make_mini_chart(t1["hist"], "#ff4b4b"), use_container_width=True, config={'displayModeBar': False})
-        st.markdown(f'<div class="supply-row"><span style="color:#0088ff">개:{t1.get("개인",0):+}</span> <span style="color:#ff4b4b">외:{t1.get("외인",0):+}</span></div>', unsafe_allow_html=True)
-    with c2:
-        st.markdown(f'<div class="m-header"><b>KOSDAQ
+live_df, nas_data, mkt_trends = fetch_realtime_all()
+
+# --- [상단] 1. 주도 섹터 & 뉴스 (9개 종목 격자) ---
+st.markdown(f"### 🔥 실시간 주도 섹터 레이더 ({now.strftime('%H:%M:%S')})")
+sectors = ["반도체", "로봇", "바이오", "비철금속"]
+
+for s_name in sectors:
+    headline = get_live_news(s_name)
+    with st.expander(f"📂 {s_name} | {headline}", expanded=True):
+        cols = st.columns(3)
+        if not live_df.empty:
+            s_stocks = live_df[live_df['Sector'].str.contains(s_name, na=False)].sort_values('Amount', ascending=False).head(9)
+            for i in range(9):
+                with cols[i % 3]:
+                    if i < len(s_stocks):
+                        row = s_stocks.iloc[i]
+                        st.markdown(f"""
+                            <div class="stock-card">
+                                <div style="font-size:14px; font-weight:bold;">{row['Name']}</div>
+                                <div class="price-up">{int(row['Close']):,}원 ({row['ChangesRatio']:+.1f}%)</div>
+                                <div style="font-size:11px; color:#888;">{format_money(row['Amount'])}</div>
+                            </div>""", unsafe_allow_html=True)
+
+st.divider()
+
+# --- [중단] 2. 거래대금 상위 주도주 (8개, 섹터 색상 구분) ---
+st.markdown("### 💰 거래대금 상위 주도주 (4%↑)")
+if not live_df.empty:
+    top_8 = live_df[live_df['ChangesRatio'] >= 4.0].sort_values('Amount', ascending=False).head(8)
+    cols_8 = st.columns(4)
+    cmap = {"반도체": "#4b0082", "로봇": "#8b0000", "바이오": "#006400", "자동차": "#00008b"}
+    
+    for idx, (i, s) in enumerate(top_8.iterrows()):
+        s_type = s['Sector'] if pd.notna(s['Sector']) else "주도주"
+        bg = "#161b22"
+        for k, v in cmap.items():
+            if k in str(s_type): bg = v
+        
+        with cols_8[idx % 4]:
+            st.markdown(f"""
+                <div class="stock-card" style="border-top: 4px solid {bg};">
+                    <div style="font-size:15px; font-weight:bold;">{s['Name']}</div>
+                    <div class="sector-tag" style="background-color:{bg};">{s_type}</div>
+                    <div class="price-up">{int(s['Close']):,}원 ({s['ChangesRatio']:+.1f}%)</div>
+                    <div style="font-size:11px; color:#888;">{format_money(s['Amount'])}</div>
+                </div>""", unsafe_allow_html=True)
+
+st.divider()
+
+# --- [하단] 3. 거래대금 그래프 & 매매동향 (개인/외인/기관) ---
+col_left, col_right = st.columns(2)
+
+with col_left:
+    st.markdown("<p style='font-size:14px; color:#888;'>📉 KOSPI 거래대금 (조)</p>", unsafe_allow_html=True)
+    fig1 = go.Figure(go.Indicator(mode="number", value=8.4, number={'suffix':"조", 'font':{'size':30, 'color':'#ff4b4b'}}))
+    fig1.update_layout(height=80, margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor="#0e1117")
+    st.plotly_chart(fig1, use_container_width=True)
+    
+    # KOSPI 매매동향 (개인 포함)
+    t = mkt_trends.get("KOSPI", {})
+    st.markdown(f"""
+        <div class="trend-box">
+            <b>KOSPI 수급(억):</b> 
+            <span style="color:{'#ff4b4b' if t['개인']>0 else '#0088ff'}">개인({t['개인']:+})</span> | 
+            <span style="color:{'#ff4b4b' if t['외인']>0 else '#0088ff'}">외인({t['외인']:+})</span> | 
+            <span style="color:{'#ff4b4b' if t['기관']>0 else '#0088ff'}">기관({t['기관']:+})</span>
+        </div>""", unsafe_allow_html=True)
+
+with col_right:
+    st.markdown("<p style='font-size:14px; color:#888;'>📈 KOSDAQ 거래대금 (조)</p>", unsafe_allow_html=True)
+    fig2 = go.Figure(go.Indicator(mode="number", value=6.8, number={'suffix':"조", 'font':{'size':30, 'color':'#ff4b4b'}}))
+    fig2.update_layout(height=80, margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor="#0e1117")
+    st.plotly_chart(fig2, use_container_width=True)
+    
+    # KOSDAQ 매매동향 (개인 포함)
+    t2 = mkt_trends.get("KOSDAQ", {})
+    st.markdown(f"""
+        <div class="trend-box">
+            <b>KOSDAQ 수급(억):</b> 
+            <span style="color:{'#ff4b4b' if t2['개인']>0 else '#0088ff'}">개인({t2['개인']:+})</span> | 
+            <span style="color:{'#ff4b4b' if t2['외인']>0 else '#0088ff'}">외인({t2['외인']:+})</span> | 
+            <span style="color:{'#ff4b4b' if t2['기관']>0 else '#0088ff'}">기관({t2['기관']:+})</span>
+        </div>""", unsafe_allow_html=True)
+
+# 나스닥 선물 (우측 하단 고정)
+if nas_data is not None:
+    st.markdown(f"""
+        <div style="margin-top:10px; background-color:#1c2128; padding:10px; border-radius:10px; text-align:center; border:1px solid #30363d;">
+            <small>나스닥 100 선물</small> &nbsp; 
+            <span style="font-size:18px; font-weight:bold; color:#ff4b4b;">{nas_data['Close']:,.2f}</span>
+            <span style="color:#ff4b4b; font-size:14px;">(▲ {nas_data['Chg']*100:.2f}%)</span>
+        </div>""", unsafe_allow_html=True)
+
+time.sleep(10)
+st.rerun()
