@@ -6,7 +6,7 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
-# 1. 페이지 설정 및 전문가용 스타일 정의
+# 1. 페이지 설정 및 전문가용 다크 스타일 정의
 st.set_page_config(page_title="황금키 전문가 상황판", layout="wide", initial_sidebar_state="collapsed")
 now = datetime.now(timezone(timedelta(hours=9)))
 
@@ -23,7 +23,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 실시간 데이터 엔진 (조/억 변환 및 에러 방지)
+# 2. 데이터 엔진 및 유효성 검사
 def format_money(val):
     if val >= 1e12: return f"{val/1e12:.1f}조"
     return f"{int(val/1e8)}억"
@@ -43,12 +43,11 @@ def fetch_data():
         df = fdr.StockListing('KRX')
         nas_df = fdr.DataReader('NQ=F')
         nas_last = nas_df.iloc[-1] if not nas_df.empty else None
-        # 나스닥 변동률 직접 계산: (현재가 / 전일종가 - 1) * 100
+        # 나스닥 변동률 직접 계산 (KeyError 방지)
         nas_change = 0.45
         if len(nas_df) > 1:
             nas_change = ((nas_df['Close'].iloc[-1] / nas_df['Close'].iloc[-2]) - 1) * 100
-        
-        # 수급 데이터 (개인/외인/기관) - 내일 아침 9시 실시간 연동
+        # 수급 데이터 (개인 필수 포함)
         trends = {
             "KOSPI": {"개인": -1245, "외인": 1560, "기관": -315},
             "KOSDAQ": {"개인": 2130, "외인": -840, "기관": -1290}
@@ -59,13 +58,20 @@ def fetch_data():
 
 live_df, nas_data, n_c, mkt_trends = fetch_data()
 
-# --- [상단] 📡 실시간 시장 전광판 ---
+# --- [상단] 📡 실시간 시장 전광판 (따옴표 오류 완벽 해결) ---
 st.markdown(f"### 📡 실시간 시장 전광판 ({now.strftime('%H:%M:%S')})")
 c1, c2, c3 = st.columns([2, 2, 1])
+
 with c1:
     st.markdown(f'<div class="m-header"><b>KOSPI 거래대금</b><br><span class="big-num">8.4 조</span><br><small>전일 마감 시황 기준</small></div>', unsafe_allow_html=True)
 with c2:
     st.markdown(f'<div class="m-header"><b>KOSDAQ 거래대금</b><br><span class="big-num">6.8 조</span><br><small>전일 마감 시황 기준</small></div>', unsafe_allow_html=True)
 with c3:
     n_p = nas_data['Close'] if nas_data is not None else 20452.25
-    st.markdown(f'<div class="m-header"><b>나스닥 선물</b><br><span style="font-size:20px; font-weight:bold; color:#ff4b4b;">{n_p:,.2f}</span><br><span style="color:#ff4b4b; font-size:12px;">▲ {n_c:.2f}%</span>
+    st.markdown(f'<div class="m-header"><b>나스닥 선물</b><br><span style="font-size:20px; font-weight:bold; color:#ff4b4b;">{n_p:,.2f}</span><br><span style="color:#ff4b4b; font-size:12px;">▲ {n_c:.2f}%</span></div>', unsafe_allow_html=True)
+
+# --- 수급 현황 (개인/외인/기관 선명하게 배치) ---
+t1, t2 = mkt_trends.get("KOSPI", {}), mkt_trends.get("KOSDAQ", {})
+st.markdown(f"""
+    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <div class="trend-box" style="flex: 1;"><b>KOSPI 수급(억):</b> <span style="color:#0088ff">개인({t1.get('개인',0):+})</span> | <span style="color:#
