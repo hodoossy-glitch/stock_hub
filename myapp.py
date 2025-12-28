@@ -6,7 +6,7 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
-# 1. 페이지 설정 및 전문가용 다크 스타일
+# 1. 페이지 설정 및 전문가용 다크 스타일 (모바일 최적화)
 st.set_page_config(page_title="딱-뉴스 황금키", layout="wide", initial_sidebar_state="collapsed")
 now = datetime.now(timezone(timedelta(hours=9)))
 
@@ -18,12 +18,12 @@ st.markdown("""
     .big-num { font-size: 26px; font-weight: bold; color: #ff4b4b; }
     .stock-card { background-color: #161b22; padding: 10px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 5px; text-align: center; }
     .price-up { color: #ff4b4b; font-weight: bold; }
-    .leader-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; margin-bottom: 8px; color: #000; font-weight: bold; }
+    .leader-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; margin-bottom: 8px; color: #000; font-weight: bold; font-size: 14px; }
     .tag-bio { background-color: #d1f7d1; } .tag-robot { background-color: #fff4cc; } .tag-aero { background-color: #ffdce0; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 엔진 (에러 방지용 직접 계산)
+# 2. 실시간 데이터 엔진 (에러 방지 및 나스닥 직접 계산)
 @st.cache_data(ttl=10)
 def fetch_data():
     try:
@@ -39,10 +39,10 @@ def fetch_data():
 
 live_df, nas_data, n_c = fetch_data()
 
-# --- 탭 구성 (선생님 요청 사항 반영) ---
+# 3. 탭 구성 (선생님 지시사항 반영: 캘린더/공시는 탭만 생성)
 tab1, tab2, tab3, tab4 = st.tabs(["주도섹터", "대금상위", "캘린더", "공시"])
 
-# --- [탭 1] 주도섹터 화면 (이미지 2 스타일) ---
+# --- [탭 1] 주도섹터 화면 (이미지 2: 9개 격자 스타일) ---
 with tab1:
     st.markdown(f"### 📡 실시간 시장 지표 ({now.strftime('%H:%M:%S')})")
     c1, c2, c3 = st.columns(3)
@@ -58,6 +58,26 @@ with tab1:
         with st.expander(f"📂 {s_name} | 관련 실시간 뉴스 헤드라인 대기 중", expanded=True):
             cols = st.columns(3)
             s_stocks = live_df[live_df['Name'].str.contains(s_name, na=False)].sort_values('Amount', ascending=False).head(9)
+            # 에러가 났던 지점: len() 괄호를 확실히 닫고 콜론(:)을 붙였습니다.
             for i in range(9):
                 with cols[i % 3]:
-                    if i < len(s_stocks
+                    if i < len(s_stocks):
+                        row = s_stocks.iloc[i]
+                        st.markdown(f'<div class="stock-card"><b>{row["Name"]}</b><br><span class="price-up">{int(row["Close"]):,}원</span><br><small>{row["ChangesRatio"]:+.1f}%</small></div>', unsafe_allow_html=True)
+
+# --- [탭 2] 대금상위 화면 (이미지 1: 컬러 리스트 스타일) ---
+with tab2:
+    st.markdown("### 💰 거래대금 상위 4%↑ 주도주")
+    # 샘플 데이터로 디자인 우선 구현
+    top_stocks = [
+        ("삼성에피스", "바이오", "661,000", "+16.17%", "1.59조", "tag-bio"),
+        ("클로봇", "로봇", "65,200", "+26.85%", "9673억", "tag-robot"),
+        ("한화시스템", "우주항공", "53,100", "+10.51%", "3909억", "tag-aero"),
+        ("비에이치아이", "원전", "64,200", "+21.82%", "4882억", "tag-aero")
+    ]
+    for name, sector, price, chg, amt, tag in top_stocks:
+        st.markdown(f'<div class="leader-item {tag}"><div>{name} <small>{sector}</small></div><div>{price} ({chg})</div><div>{amt}</div></div>', unsafe_allow_html=True)
+    
+    st.divider()
+    st.markdown("### 📊 시장별 매매동향 (억)")
+    st.markdown('<div class="m-header">KOSPI: <span style="color:#0088ff">개인(-124
