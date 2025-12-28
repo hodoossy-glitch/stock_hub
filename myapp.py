@@ -8,24 +8,24 @@ import time
 st.set_page_config(page_title="황금키 통합 상황판", layout="wide", initial_sidebar_state="collapsed")
 now = datetime.now(timezone(timedelta(hours=9)))
 
-# CSS: 전문가용 대시보드 디자인
+# CSS: 전문가용 디자인
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
     .main { background-color: #0e1117; color: #ffffff; }
     .m-header { background-color: #1c2128; padding: 20px; border-radius: 10px; border: 1px solid #30363d; text-align: center; margin-bottom: 10px; }
     .stock-card { background-color: #161b22; padding: 12px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 8px; text-align: center; }
-    .price-up { color: #ff4b4b; font-weight: bold; font-size: 20px; }
+    .price-up { color: #ff4b4b; font-weight: bold; font-size: 18px; }
     .big-num { font-size: 32px; font-weight: bold; color: #ff4b4b; }
+    .sector-tag { color: white; font-size: 10px; padding: 2px 5px; border-radius: 3px; display: inline-block; margin-bottom: 5px; background-color: #4b0082; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 호출 엔진 (서버 호출 안정성 확보)
+# 2. 데이터 엔진
 @st.cache_data(ttl=10)
 def get_live_data():
     try:
         df = fdr.StockListing('KRX')
-        # 나스닥 선물 등 지표 호출 (서버 점검 대응)
         nas_df = fdr.DataReader('NQ=F')
         nas_last = nas_df.iloc[-1]
         return df, float(nas_last['Close']), float(nas_last['Chg']) * 100
@@ -46,38 +46,39 @@ with c2:
     <small>외인:-0.8천억 | 기관:-1.3천억</small></div>""", unsafe_allow_html=True)
 with c3:
     color = "#ff4b4b" if nas_c >= 0 else "#0088ff"
-    st.markdown(f"""<div class="m-header"><b>나스닥 100 선물</b><br>
+    st.markdown(f"""<div class="m-header"><b>나스닥 선물</b><br>
     <span style="font-size:28px; font-weight:bold; color:{color};">{nas_p:,.2f}</span><br>
     <span style="color:{color};">{'▲' if nas_c >= 0 else '▼'} {abs(nas_c):.2f}%</span></div>""", unsafe_allow_html=True)
 
 st.divider()
 
-# 4. 메인: 주도 섹터 레이더 (4% 이상 급등주 자동 필터)
-st.markdown("### 🔥 실시간 주도 섹터 레이더 (4%↑)")
+# 4. 메인: 주도 섹터 레이더 (4%↑)
+st.markdown("### 🔥 실시간 주도 섹터 & 뉴스")
 sectors = {"반도체": "HBM 수급 폭발", "로봇": "삼성 로봇 출시 임박", "바이오": "임상 기대감", "비철금속": "원자재 급등"}
 
 for s_name, s_news in sectors.items():
     with st.expander(f"📂 {s_name} | {s_news}", expanded=True):
         cols = st.columns(3)
         if not live_df.empty:
-            # 실시간 4% 이상 & 해당 섹터 종목 필터링
             s_df = live_df[(live_df['Sector'].str.contains(s_name, na=False)) & (live_df['ChangesRatio'] >= 4.0)].sort_values('Amount', ascending=False).head(9)
-            
             for i in range(9):
                 with cols[i % 3]:
                     if i < len(s_df):
-                        # 데이터가 있을 때 출력 (들여쓰기 정밀 교정)
                         row = s_df.iloc[i]
-                        st.markdown(f"""
-                            <div class='stock-card'>
-                                <b>{row['Name']}</b><br>
-                                <span class='price-up'>{int(row['Close']):,}원 ({row['ChangesRatio']:+.2f}%)</span>
-                            </div>""", unsafe_allow_html=True)
+                        st.markdown(f"<div class='stock-card'><b>{row['Name']}</b><br><span class='price-up'>{int(row['Close']):,}원 ({row['ChangesRatio']:+.1f}%)</span></div>", unsafe_allow_html=True)
                     else:
-                        # 빈 칸 처리
-                        st.markdown("<div class='stock-card' style='color:#444;'>조건 종목 대기</div>", unsafe_allow_html=True)
-        else:
-            st.info("실시간 서버 연결 중... (내일 오전 9시 활성화)")
+                        st.markdown("<div class='stock-card' style='color:#444;'>조건 대기</div>", unsafe_allow_html=True)
 
-time.sleep(10)
-st.rerun()
+st.divider()
+
+# 5. 하단: 거래대금 상위 주도주 (4%↑) - 복구 완료
+st.markdown("### 💰 거래대금 상위 주도주 (4%↑)")
+if not live_df.empty:
+    top_4 = live_df[live_df['ChangesRatio'] >= 4.0].sort_values('Amount', ascending=False).head(4)
+    col_stocks = st.columns(4)
+    for idx, (i, s) in enumerate(top_4.iterrows()):
+        amt_txt = f"{s['Amount']/1e12:.1f}조" if s['Amount'] >= 1e12 else f"{int(s['Amount']/1e8)}억"
+        with col_stocks[idx]:
+            st.markdown(f"""
+                <div class="stock-card" style="border-top: 4px solid #ff4b4b;">
+                    <div style="
