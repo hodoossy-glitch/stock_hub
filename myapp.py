@@ -43,4 +43,34 @@ with c3:
 
 st.divider()
 
-# 4. 주도 섹터 상세 (이미지 2의 뉴스+종
+# 4. 주도 섹터 상세 (이미지 2의 뉴스+종목 격자 스타일)
+st.markdown("### 🔥 실시간 주도 섹터 & 뉴스")
+# 들여쓰기 에러가 나지 않도록 변수와 루프를 아주 단순하게 구성했습니다.
+sectors = [("로봇", "4대 그룹 다 뛰어든 로봇 관절 전쟁... K-휴머노이드 성패 달렸다")]
+
+for s_name, s_news in sectors:
+    with st.expander(f"📂 {s_name} | {s_news}", expanded=True):
+        cols = st.columns(3)
+        # 종목 예시 데이터
+        stocks = [("클로봇", "65,200", "+26.8%"), ("씨메스", "39,700", "+14.5%"), ("유진로봇", "16,920", "+14.0%")]
+        for i, (name, price, chg) in enumerate(stocks):
+            with cols[i % 3]:
+                st.markdown(f'<div class="stock-grid-card"><b>{name}</b><br><span style="color:#ff4b4b;">{price}</span><br><small>{chg}</small></div>', unsafe_allow_html=True)
+
+st.divider()
+
+# 5. 거래대금 상위 주도주 (이미지 1의 컬러 카드 스타일)
+st.markdown("### 💰 거래대금 상위 4%↑ 주도주")
+top_stocks = [
+    ("삼성에피스", "바이오", "661,000", "+16.17%", "1.59조", "tag-bio"),
+    ("클로봇", "로봇", "65,200", "+26.85%", "9673억", "tag-robot"),
+    ("한화시스템", "우주항공", "53,100", "+10.51%", "3909억", "tag-aero"),
+    ("비에이치아이", "원전", "64,200", "+21.82%", "4882억", "tag-atomic")
+]
+
+for name, sector, price, change, amount, tag in top_stocks:
+    st.markdown(f'<div class="leader-item {tag}"><div style="flex:1;">{name} <small>{sector}</small></div><div style="flex:1; text-align:center;">{price} <small>{change}</small></div><div style="flex:1; text-align:right;">{amount}</div></div>', unsafe_allow_html=True)
+
+# 6. 시장별 매매동향 (이미지 2 하단 스타일)
+st.markdown("### 📊 시장별 매매동향 (단위: 억)")
+st.markdown('<table class="trend-table"><tr><th>시장</th><th>개인</th><th>외국인</th><th>기관</th></tr><tr><td>코스피</td><td style="color:#0088ff">-1245</td><td style="color:#ff4b4b">+1560</td><td>-315</td></tr><tr><td>코스닥</td><td style="color:#ff4b4b">+2130</td><td style="color:#0088ff">-840</td><td>-1290</td></tr></table>', unsafe_allow_html=True)
