@@ -20,11 +20,12 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 호출 엔진 (서버 점검 대응)
+# 2. 데이터 호출 엔진 (서버 호출 안정성 확보)
 @st.cache_data(ttl=10)
 def get_live_data():
     try:
         df = fdr.StockListing('KRX')
+        # 나스닥 선물 등 지표 호출 (서버 점검 대응)
         nas_df = fdr.DataReader('NQ=F')
         nas_last = nas_df.iloc[-1]
         return df, float(nas_last['Close']), float(nas_last['Chg']) * 100
@@ -51,7 +52,7 @@ with c3:
 
 st.divider()
 
-# 4. 메인: 주도 섹터 레이더 (4% 이상 급등주 실시간 필터)
+# 4. 메인: 주도 섹터 레이더 (4% 이상 급등주 자동 필터)
 st.markdown("### 🔥 실시간 주도 섹터 레이더 (4%↑)")
 sectors = {"반도체": "HBM 수급 폭발", "로봇": "삼성 로봇 출시 임박", "바이오": "임상 기대감", "비철금속": "원자재 급등"}
 
@@ -59,13 +60,13 @@ for s_name, s_news in sectors.items():
     with st.expander(f"📂 {s_name} | {s_news}", expanded=True):
         cols = st.columns(3)
         if not live_df.empty:
-            # 실시간 4% 이상 & 거래대금 상위 종목 필터링
+            # 실시간 4% 이상 & 해당 섹터 종목 필터링
             s_df = live_df[(live_df['Sector'].str.contains(s_name, na=False)) & (live_df['ChangesRatio'] >= 4.0)].sort_values('Amount', ascending=False).head(9)
             
             for i in range(9):
                 with cols[i % 3]:
                     if i < len(s_df):
-                        # 조건에 맞는 실시간 데이터가 있을 때 출력
+                        # 데이터가 있을 때 출력 (들여쓰기 정밀 교정)
                         row = s_df.iloc[i]
                         st.markdown(f"""
                             <div class='stock-card'>
@@ -73,7 +74,7 @@ for s_name, s_news in sectors.items():
                                 <span class='price-up'>{int(row['Close']):,}원 ({row['ChangesRatio']:+.2f}%)</span>
                             </div>""", unsafe_allow_html=True)
                     else:
-                        # 아직 조건에 맞는 종목이 부족할 때
+                        # 빈 칸 처리
                         st.markdown("<div class='stock-card' style='color:#444;'>조건 종목 대기</div>", unsafe_allow_html=True)
         else:
             st.info("실시간 서버 연결 중... (내일 오전 9시 활성화)")
