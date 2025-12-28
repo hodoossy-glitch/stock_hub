@@ -6,7 +6,7 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
-# 1. 페이지 설정 (모바일 최적화)
+# 1. 페이지 설정 및 전문가용 다크 스타일
 st.set_page_config(page_title="황금키 전문가 상황판", layout="wide", initial_sidebar_state="collapsed")
 now = datetime.now(timezone(timedelta(hours=9)))
 
@@ -17,13 +17,13 @@ st.markdown("""
     .m-header { background-color: #1c2128; padding: 15px; border-radius: 10px; border: 1px solid #30363d; text-align: center; margin-bottom: 10px; }
     .stock-card { background-color: #161b22; padding: 10px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 5px; text-align: center; }
     .price-up { color: #ff4b4b; font-weight: bold; font-size: 16px; }
-    .sector-tag { color: white; font-size: 10px; padding: 2px 5px; border-radius: 3px; display: inline-block; margin-bottom: 5px; background-color: #4b0082; }
+    .sector-tag { color: white; font-size: 10px; padding: 2px 5px; border-radius: 3px; display: inline-block; margin-bottom: 5px; }
     .trend-box { background-color: #1c2128; padding: 10px; border-radius: 8px; border: 1px solid #30363d; font-size: 12px; margin-top: 10px; text-align: center; }
     .big-num { font-size: 32px; font-weight: bold; color: #ff4b4b; line-height: 1.2; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 실시간 데이터 엔진 (에러 방지 로직 포함)
+# 2. 실시간 데이터 엔진 (조/억 변환 및 에러 방지)
 def format_money(val):
     if val >= 1e12: return f"{val/1e12:.1f}조"
     return f"{int(val/1e8)}억"
@@ -35,19 +35,19 @@ def get_live_news(keyword):
         soup = BeautifulSoup(res.text, 'html.parser')
         return soup.select_one('a.news_tit').get_text()[:35] + "..."
     except:
-        return f"{keyword} 섹터 실시간 수급 및 대응 전략 분석 중"
+        return f"{keyword} 섹터 실시간 시황 분석 및 대응 전략 수립 중"
 
 @st.cache_data(ttl=10)
 def fetch_data():
     try:
         df = fdr.StockListing('KRX')
-        # 나스닥 선물 데이터 & 변동률 직접 계산 (KeyError 방지)
         nas_df = fdr.DataReader('NQ=F')
         nas_last = nas_df.iloc[-1] if not nas_df.empty else None
         nas_change = 0.45
         if len(nas_df) > 1:
             nas_change = ((nas_df['Close'].iloc[-1] / nas_df['Close'].iloc[-2]) - 1) * 100
         
+        # 수급 데이터 (개인/외인/기관)
         trends = {
             "KOSPI": {"개인": -1245, "외인": 1560, "기관": -315},
             "KOSDAQ": {"개인": 2130, "외인": -840, "기관": -1290}
@@ -69,7 +69,7 @@ with c3:
     n_p = nas_data['Close'] if nas_data is not None else 20452.25
     st.markdown(f'<div class="m-header"><b>나스닥 선물</b><br><span style="font-size:20px; font-weight:bold; color:#ff4b4b;">{n_p:,.2f}</span><br><span style="color:#ff4b4b; font-size:12px;">▲ {n_c:.2f}%</span></div>', unsafe_allow_html=True)
 
-# --- 수급 동향 (개인/외인/기관) ---
+# --- 수급 동향 (개인 포함 필수 데이터) ---
 t1, t2 = mkt_trends.get("KOSPI", {}), mkt_trends.get("KOSDAQ", {})
 st.markdown(f"""
     <div style="display: flex; gap: 10px; margin-bottom: 20px;">
@@ -80,37 +80,17 @@ st.markdown(f"""
 
 st.divider()
 
-# --- [중단] 🔥 실시간 주도 섹터 & 뉴스 (9개 종목 격자) ---
+# --- [중단] 🔥 실시간 주도 섹터 & 뉴스 (한 줄 배치 & 9개 종목) ---
 st.markdown("### 🔥 실시간 주도 섹터 & 뉴스")
 for s_name in ["반도체", "로봇", "바이오", "비철금속"]:
     headline = get_live_news(s_name)
     with st.expander(f"📂 {s_name} | {headline}", expanded=True):
         cols = st.columns(3)
-        # 종목 데이터 필터링 (Sector 컬럼이 없을 경우 대비하여 Name 기반 검색 병행)
-        s_stocks = pd.DataFrame()
         if not live_df.empty:
+            # 섹터 필터링 강화 (종목명 매칭 포함)
             s_stocks = live_df[live_df['Name'].str.contains(s_name, na=False) | (live_df.get('Sector', pd.Series()).str.contains(s_name, na=False))].sort_values('Amount', ascending=False).head(9)
-        
-        if not s_stocks.empty:
             for i in range(9):
                 with cols[i % 3]:
                     if i < len(s_stocks):
                         row = s_stocks.iloc[i]
-                        st.markdown(f"""<div class="stock-card"><b>{row['Name']}</b><br><span class="price-up">{int(row['Close']):,}원 ({row['ChangesRatio']:+.1f}%)</span><br><small style="color:#888;">{format_money(row['Amount'])}</small></div>""", unsafe_allow_html=True)
-        else:
-            st.info(f"{s_name} 섹터의 실시간 주도주를 검색 중입니다... (내일 오전 9시 활성화)")
-
-st.divider()
-
-# --- [하단] 💰 거래대금 상위 주도주 (4%↑) ---
-st.markdown("### 💰 거래대금 상위 주도주 (4%↑)")
-# 일요일에는 4% 이상이 없으므로, 테스트를 위해 거래대금 상위 8개를 우선 보여줍니다.
-top_8 = pd.DataFrame()
-if not live_df.empty:
-    top_8 = live_df.sort_values('Amount', ascending=False).head(8)
-
-if not top_8.empty:
-    cols_8 = st.columns(4)
-    for idx, (i, s) in enumerate(top_8.iterrows()):
-        with cols_8[idx % 4]:
-            st.markdown(f"""<div class="stock-card" style="border-top: 4px solid #4b0082;"><b>{s['Name']}</b><br><span class="price-up">{int(s['Close']):,}원 ({s['ChangesRatio']:+.1f}%)</span><br><small style="color:#888;">{format_
+                        st.markdown(f"""<div class="stock-card"><b>{row['Name']}</b><br><span class="price-up">{int(row['Close']):,}원 ({row['ChangesRatio']:+.1f}%)</span><br><small style="color:#888;">{format_money(row['Amount'])}</small></div>""",
