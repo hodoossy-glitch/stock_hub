@@ -28,7 +28,7 @@ def fetch_data():
         df = fdr.StockListing('KRX')
         # 등락률 컬럼명 통일 (ChangesRatio, Chg, Rate 등 대응)
         if 'ChangesRatio' not in df.columns:
-            for col in ['Chg', 'Rate', 'Fluctuation']:
+            for col in ['Chg', 'Rate', 'Fluctuation', 'Change']:
                 if col in df.columns:
                     df['ChangesRatio'] = df[col]
                     break
@@ -62,11 +62,4 @@ with tab1:
     st.divider()
     st.markdown("### 🔥 실시간 주도 섹터 & 뉴스")
     for s_name in ["반도체", "로봇", "바이오"]:
-        with st.expander(f"📂 {s_name} | 관련 실시간 뉴스 대기 중", expanded=True):
-            cols = st.columns(3)
-            s_stocks = live_df[live_df['Name'].str.contains(s_name, na=False)].sort_values('Amount', ascending=False).head(9)
-            for i in range(9):
-                with cols[i % 3]:
-                    if i < len(s_stocks):
-                        row = s_stocks.iloc[i]
-                        # row.get()을 사용하여 데이터가 없어도 에러가 나지 않게
+        with st.
