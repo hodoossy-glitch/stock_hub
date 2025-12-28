@@ -4,11 +4,11 @@ import FinanceDataReader as fdr
 from datetime import datetime, timedelta, timezone
 import time
 
-# 1. 모바일 최적화 및 한국 시간 설정
+# 1. 페이지 설정
 st.set_page_config(page_title="황금키 실시간 레이더", layout="wide", initial_sidebar_state="collapsed")
 now = datetime.now(timezone(timedelta(hours=9)))
 
-# CSS: 모바일 전용 블랙 HTS 디자인
+# CSS 디자인
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
@@ -19,42 +19,52 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 상단 헤더
-st.markdown(f"<div class='m-title'>📡 실시간 주도주 레이더</div>", unsafe_allow_html=True)
-st.caption(f"데이터 동기화 시각: {now.strftime('%H:%M:%S')}")
+st.markdown(f"<div class='m-title'>📡 실시간 주도주 레이더 (정밀 모드)</div>", unsafe_allow_html=True)
+st.caption(f"최종 데이터 동기화: {now.strftime('%Y-%m-%d %H:%M:%S')}")
 
-# 3. 실시간 데이터 검색 함수 (핵심 엔진)
-@st.cache_data(ttl=60) # 1분마다 최신 데이터로 갱신
-def fetch_realtime_leaders():
+# 2. 정밀 데이터 엔진 (리스트가 아닌 개별 시세 확인)
+@st.cache_data(ttl=60)
+def fetch_exact_data():
     try:
-        # 전종목 시세 가져오기
-        df = fdr.StockListing('KRX')
+        # 먼저 시총 상위 리스트를 가져옵니다.
+        df_list = fdr.StockListing('KRX')
+        # 시총 5,000억 이상 상위 30개만 추려서 개별 정밀 검사
+        target_list = df_list[df_list['Marcap'] >= 500000000000].head(30)
         
-        # 필터링 1: 시총 5,000억 이상 (우량주 집중)
-        # 필터링 2: 등락률 4% 이상 (주도주 집중)
-        # 필터링 3: 잡주 제거 (우선주, 스팩 등)
-        leaders = df[
-            (df['Marcap'] >= 500000000000) & 
-            (df['ChangesRatio'] >= 4.0) &
-            (~df['Name'].str.contains('우|스팩|관리'))
-        ].sort_values(by='Amount', ascending=False).head(15) # 거래대금 순 정렬
+        results = []
+        for _, row in target_list.iterrows():
+            try:
+                # 데이터리더로 해당 종목의 최근 3일치 시세를 직접 가져옵니다 (가장 확실한 방법)
+                df_detail = fdr.DataReader(row['Code'], (now - timedelta(days=7)).strftime('%Y-%m-%d'))
+                if df_detail.empty: continue
+                
+                last_price = int(df_detail.iloc[-1]['Close'])
+                prev_price = int(df_detail.iloc[-2]['Close'])
+                chg_ratio = ((last_price - prev_price) / prev_price) * 100
+                amount = int(df_detail.iloc[-1]['Amount'] / 1e8) # 억 단위
+
+                # 4% 이상 상승 종목만 선별
+                if chg_ratio >= 4.0:
+                    results.append({
+                        'Name': row['Name'],
+                        'Close': last_price,
+                        'ChangesRatio': chg_ratio,
+                        'Amount': amount,
+                        'Sector': row['Sector']
+                    })
+            except: continue
         
-        return leaders
+        return pd.DataFrame(results).sort_values(by='Amount', ascending=False)
     except:
         return pd.DataFrame()
 
-# 4. 실시간 전광판 출력
-st.markdown("### 💰 실시간 거래대금 상위 (4%↑)")
-
-leaders_df = fetch_realtime_leaders()
+# 3. 화면 출력
+leaders_df = fetch_exact_data()
 
 if not leaders_df.empty:
     for _, row in leaders_df.iterrows():
-        # 거래대금 단위 변환 (조/억)
-        amt_val = row['Amount'] / 1e8
-        amt_display = f"{amt_val/10000:.1f}조" if amt_val >= 10000 else f"{int(amt_val)}억"
+        amt_display = f"{row['Amount']/10000:.1f}조" if row['Amount'] >= 10000 else f"{row['Amount']}억"
         
-        # 모바일 최적화 카드 출력
         st.markdown(f"""
             <div class="stock-card">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -63,19 +73,15 @@ if not leaders_df.empty:
                         <div style="font-size:12px; color:#888;">{row['Sector'] if row['Sector'] else '주도주'}</div>
                     </div>
                     <div style="text-align:right;">
-                        <div class="price-up">{int(row['Close']):,}원</div>
+                        <div class="price-up">{row['Close']:,}원</div>
                         <div style="font-size:14px; color:#ff4b4b;">{row['ChangesRatio']:+.2f}% <span style="color:#888; margin-left:5px;">{amt_display}</span></div>
                     </div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
 else:
-    st.info("⌛ 현재 조건(시총 5천억↑, 4%↑)을 만족하는 주도주를 탐색 중입니다. 장 시작 후 자동으로 표시됩니다.")
+    st.info("현재 시장에서 4% 이상 상승 중인 우량주를 정밀 탐색 중입니다.")
 
-# 5. 하단 시장 지표 (나스닥 선물 등)
 st.divider()
-st.markdown(f"🌐 **나스닥 100 선물:** <span style='color:#ff4b4b;'>실시간 연동 중...</span>", unsafe_allow_html=True)
-
-# 6. 1분마다 자동 새로고침
 time.sleep(60)
 st.rerun()
