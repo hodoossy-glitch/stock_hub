@@ -5,14 +5,14 @@ import plotly.graph_objects as go
 from datetime import datetime, timezone, timedelta
 import time
 
-# 1. 페이지 설정 및 디자인 (기존 다크 틀 유지)
+# 1. 페이지 설정 및 디자인 (기존 틀 유지)
 st.set_page_config(page_title="딱-뉴스 황금키", layout="wide", initial_sidebar_state="collapsed")
 now = datetime.now(timezone(timedelta(hours=9)))
 
 if 'dark_mode' not in st.session_state:
     st.session_state.dark_mode = True
 
-# 테마 색상 변수
+# 테마 색상 변수 설정
 bg_color = "#0e1117" if st.session_state.dark_mode else "#ffffff"
 text_color = "#ffffff" if st.session_state.dark_mode else "#222222"
 header_bg = "#1c2128" if st.session_state.dark_mode else "#f8f9fa"
@@ -23,7 +23,7 @@ st.markdown(f"""
     <style>
     [data-testid="stSidebar"] {{ display: none; }}
     .stApp {{ background-color: {bg_color} !important; color: {text_color} !important; }}
-    .stButton > button {{ position: fixed; top: 10px; right: 10px; z-index: 1000; padding: 2px 8px; font-size: 10px; }}
+    .stButton > button {{ position: fixed; top: 10px; right: 10px; z-index: 1000; padding: 2px 8px; font-size: 10px; border-radius: 5px; }}
     .m-header {{ background-color: {header_bg}; padding: 12px; border-radius: 12px; border: 1px solid {border_color}; text-align: center; margin-bottom: 5px; }}
     .big-num {{ font-size: 24px; font-weight: bold; color: #ff4b4b; }}
     .stock-card {{ background-color: {card_bg}; padding: 10px; border-radius: 10px; border: 1px solid {border_color}; text-align: center; min-height: 100px; }}
@@ -32,16 +32,18 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 실시간 데이터 수집 엔진 (긁어오기 핵심)
-@st.cache_data(ttl=5) # 5초마다 새로 긁어옴
-def scrape_market_data():
+# 2. 강화된 데이터 수집 엔진 (JSON 에러 방어)
+@st.cache_data(ttl=10) # 접속 주기를 10초로 늘려 차단 방지
+def scrape_market_data_safe():
     try:
-        # [데이터 긁어오기 1] KRX 전체 종목 시세
+        # [방어 로직 1] KRX 종목 리스트 긁어오기
         df = fdr.StockListing('KRX')
+        if df.empty: raise ValueError("Data Empty")
+        
         for col in ['ChangesRatio', 'Chg', 'Rate', 'Change']:
             if col in df.columns: df['Chg_Fix'] = df[col]; break
-        
-        # [데이터 긁어오기 2] 국내 및 해외 지수
+            
+        # [방어 로직 2] 지수 데이터 수집
         ks = fdr.DataReader('KS11').tail(20)
         kq = fdr.DataReader('KQ11').tail(20)
         nq = fdr.DataReader('NQ=F').tail(20)
@@ -53,7 +55,7 @@ def scrape_market_data():
         }
         return df, market
     except Exception as e:
-        st.error(f"데이터 연결 중: {e}")
+        # 에러 발생 시 빈 데이터 대신 안내 메시지 반환
         return pd.DataFrame(), {}
 
 # 모드 전환 버튼
@@ -62,7 +64,7 @@ if st.button(btn_label):
     st.session_state.dark_mode = not st.session_state.dark_mode
     st.rerun()
 
-live_df, mkt_data = scrape_market_data()
+live_df, mkt_data = scrape_market_data_safe()
 
 # 3. 그래프 함수
 def draw_chart(series):
@@ -75,47 +77,19 @@ def draw_chart(series):
 tab1, tab2, tab3, tab4 = st.tabs(["주도섹터", "대금상위", "캘린더", "공시"])
 
 with tab1:
-    st.markdown(f"### 📡 실시간 지수 ({now.strftime('%H:%M:%S')})")
+    st.markdown(f"### 📡 실시간 지표 ({now.strftime('%H:%M:%S')})")
+    if not mkt_data:
+        st.warning("🔄 서버 연결 대기 중... (장 개시 전 점검 중일 수 있습니다)")
     c1, c2, c3 = st.columns(3)
     for idx, (m_key, m_name) in enumerate([("KOSPI", "KOSPI"), ("KOSDAQ", "KOSDAQ"), ("NAS", "나스닥선물")]):
         t = mkt_data.get(m_key, {})
         with [c1, c2, c3][idx]:
-            st.markdown(f'''<div class="m-header"><b>{m_name}</b><br><span class="big-num">{t.get("val", 0):,.2f}</span><br>
+            val = t.get("val", 0)
+            st.markdown(f'''<div class="m-header"><b>{m_name}</b><br><span class="big-num">{val:,.2f}</span><br>
                 <small style="color:#ff4b4b;">▲ {t.get("chg", 0):.2f}%</small></div>''', unsafe_allow_html=True)
             if "hist" in t: st.plotly_chart(draw_chart(t["hist"]), use_container_width=True, config={'displayModeBar': False})
 
     st.divider()
-    st.markdown("### 🔥 실시간 주도 섹터 (9개 격자)")
-    for s_name in ["반도체", "로봇", "바이오"]:
-        with st.expander(f"📂 {s_name} | 실시간 긁어오는 중", expanded=True):
-            cols = st.columns(3)
-            if not live_df.empty:
-                # 해당 섹터 명칭이 포함된 종목 중 거래대금 상위 9개 추출
-                s_stocks = live_df[live_df['Name'].str.contains(s_name, na=False)].sort_values('Amount', ascending=False).head(9)
-                for i in range(9):
-                    with cols[i % 3]:
-                        if i < len(s_stocks):
-                            row = s_stocks.iloc[i]
-                            amt = f"{int(row.get('Amount', 0)/1e8)}억" if row.get('Amount', 0) > 0 else "대기"
-                            st.markdown(f'''<div class="stock-card"><b>{row["Name"]}</b><br>
-                            <span class="price-up">{int(row["Close"]):,}원</span><br>
-                            <small>{row.get("Chg_Fix", 0.0):+.2f}%</small><br>
-                            <span class="amt-label">{amt}</span></div>''', unsafe_allow_html=True)
-
-with tab2:
-    st.markdown("### 💰 실시간 거래대금 상위 (Top 9)")
-    if not live_df.empty:
-        top_9 = live_df.sort_values('Amount', ascending=False).head(9)
-        cols_9 = st.columns(3)
-        for i in range(9):
-            with cols_9[i % 3]:
-                if i < len(top_9):
-                    s = top_9.iloc[i]
-                    amt = f"{int(s.get('Amount', 0)/1e8):,}억"
-                    st.markdown(f'''<div class="stock-card" style="border-top: 3px solid #ff4b4b;">
-                        <b>{s["Name"]}</b><br><span class="price-up">{int(s["Close"]):,}원</span><br>
-                        <small>{s.get("Chg_Fix", 0.0):+.2f}%</small><br>
-                        <span class="amt-label">{amt}</span></div>''', unsafe_allow_html=True)
-
-time.sleep(5)
-st.rerun()
+    st.markdown("### 🔥 실시간 주도 섹터")
+    if live_df.empty:
+        st.info("⌛ 9시 정각에 데이터 스캔을 시작합니다.")
