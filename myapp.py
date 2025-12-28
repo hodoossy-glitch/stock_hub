@@ -61,27 +61,3 @@ for s_name, s_news in sectors.items():
         if not live_df.empty:
             s_df = live_df[(live_df['Sector'].str.contains(s_name, na=False)) & (live_df['ChangesRatio'] >= 4.0)].sort_values('Amount', ascending=False).head(9)
             for i in range(9):
-                with cols[i % 3]:
-                    if i < len(s_df):
-                        row = s_df.iloc[i]
-                        st.markdown(f"<div class='stock-card'><b>{row['Name']}</b><br><span class='price-up'>{int(row['Close']):,}원 ({row['ChangesRatio']:+.1f}%)</span></div>", unsafe_allow_html=True)
-                    else:
-                        st.markdown("<div class='stock-card' style='color:#444;'>조건 대기</div>", unsafe_allow_html=True)
-
-st.divider()
-
-# 5. 하단: 거래대금 상위 주도주 (4%↑)
-st.markdown("### 💰 거래대금 상위 주도주 (4%↑)")
-if not live_df.empty:
-    top_4 = live_df[live_df['ChangesRatio'] >= 4.0].sort_values('Amount', ascending=False).head(4)
-    col_stocks = st.columns(4)
-    for idx, (i, s) in enumerate(top_4.iterrows()):
-        amt_txt = f"{s['Amount']/1e12:.1f}조" if s['Amount'] >= 1e12 else f"{int(s['Amount']/1e8)}억"
-        with col_stocks[idx]:
-            st.markdown(f"""
-                <div class="stock-card" style="border-top: 4px solid #ff4b4b;">
-                    <div style="font-size:15px; font-weight:bold;">{s['Name']}</div>
-                    <div class="sector-tag">{s['Sector'] if pd.notna(s['Sector']) else '주도주'}</div>
-                    <div class="price-up">{int(s['Close']):,}원</div>
-                    <div style="display:flex; justify-content:space-between; font-size:12px; margin-top:5px;">
-                        <span style="color:#ff4b4b;">{
