@@ -21,7 +21,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 엔진
+# 2. 데이터 엔진 (안전 모드)
 @st.cache_data(ttl=10)
 def get_live_data():
     try:
@@ -43,4 +43,47 @@ with c2:
     st.markdown(f'<div class="m-header"><b>KOSDAQ 거래대금</b><br><span class="big-num">6.8 조</span><br><small>외인:-0.8천억 | 기관:-1.3천억</small></div>', unsafe_allow_html=True)
 with c3:
     color = "#ff4b4b" if nas_c >= 0 else "#0088ff"
-    st.
+    st.markdown(f'<div class="m-header"><b>나스닥 선물</b><br><span style="font-size:24px; font-weight:bold; color:{color};">{nas_p:,.2f}</span><br><span style="color:{color};">{"▲" if nas_c >= 0 else "▼"} {abs(nas_c):.2f}%</span></div>', unsafe_allow_html=True)
+
+st.divider()
+
+# 4. 메인: 주도 섹터 레이더 (4%↑)
+st.markdown("### 🔥 실시간 주도 섹터 & 뉴스")
+sectors = {"반도체": "HBM 수급 폭발", "로봇": "삼성 로봇 출시 임박", "바이오": "임상 기대감", "비철금속": "원자재 급등"}
+
+for s_name, s_news in sectors.items():
+    with st.expander(f"📂 {s_name} | {s_news}", expanded=True):
+        cols = st.columns(3)
+        if not live_df.empty:
+            s_df = live_df[(live_df['Sector'].str.contains(s_name, na=False)) & (live_df['ChangesRatio'] >= 4.0)].sort_values('Amount', ascending=False).head(9)
+            for i in range(9):
+                with cols[i % 3]:
+                    if i < len(s_df):
+                        row = s_df.iloc[i]
+                        st.markdown(f"<div class='stock-card'><b>{row['Name']}</b><br><span class='price-up'>{int(row['Close']):,}원 ({row['ChangesRatio']:+.1f}%)</span></div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown("<div class='stock-card' style='color:#444;'>조건 대기</div>", unsafe_allow_html=True)
+
+st.divider()
+
+# 5. 하단: 거래대금 상위 주도주 (4%↑)
+st.markdown("### 💰 거래대금 상위 주도주 (4%↑)")
+if not live_df.empty:
+    top_4 = live_df[live_df['ChangesRatio'] >= 4.0].sort_values('Amount', ascending=False).head(4)
+    col_stocks = st.columns(4)
+    for idx, (i, s) in enumerate(top_4.iterrows()):
+        amt_txt = f"{s['Amount']/1e12:.1f}조" if s['Amount'] >= 1e12 else f"{int(s['Amount']/1e8)}억"
+        with col_stocks[idx]:
+            st.markdown(f"""
+                <div class="stock-card" style="border-top: 4px solid #ff4b4b;">
+                    <div style="font-size:15px; font-weight:bold;">{s['Name']}</div>
+                    <div class="sector-tag">{s['Sector'] if pd.notna(s['Sector']) else '주도주'}</div>
+                    <div class="price-up">{int(s['Close']):,}원</div>
+                    <div style="display:flex; justify-content:space-between; font-size:12px; margin-top:5px;">
+                        <span style="color:#ff4b4b;">{s['ChangesRatio']:+.1f}%</span>
+                        <span style="color:#888;">{amt_txt}</span>
+                    </div>
+                </div>""", unsafe_allow_html=True)
+
+time.sleep(10)
+st.rerun()
