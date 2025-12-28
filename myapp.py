@@ -27,11 +27,10 @@ st.markdown("""
 def fetch_data():
     try:
         df = fdr.StockListing('KRX')
-        # 등락률 컬럼 통일
         for col in ['ChangesRatio', 'Chg', 'Rate', 'Change']:
             if col in df.columns: df['Chg_Fix'] = df[col]; break
         
-        # 시장 지수 그래프용 데이터 (최근 20일선)
+        # 지수 그래프용 20일 데이터
         kospi_h = fdr.DataReader('KS11').tail(20)['Close']
         kosdaq_h = fdr.DataReader('KQ11').tail(20)['Close']
         nas_h = fdr.DataReader('NQ=F').tail(20)['Close']
@@ -50,13 +49,13 @@ live_df, mkt_data = fetch_data()
 # 3. 탭 구성
 tab1, tab2, tab3, tab4 = st.tabs(["주도섹터", "대금상위", "캘린더", "공시"])
 
-# --- 지수 그래프 생성 함수 ---
 def make_mini_chart(series, color):
     fig = go.Figure(data=go.Scatter(y=series, mode='lines', line=dict(color=color, width=2)))
     fig.update_layout(height=50, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False, yaxis_visible=False, 
                       paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
     return fig
 
-# --- 공통 상단 지표 (그래프 포함) ---
 def show_market_with_charts():
-    st.markdown(f"###
+    st.markdown(f"### 📡 실시간 시장 지표 ({now.strftime('%H:%M:%S')})")
+    c1, c2, c3 = st.columns(3)
+    t1, t2,
