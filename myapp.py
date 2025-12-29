@@ -75,10 +75,3 @@ btn_label = "🌙" if not st.session_state.dark_mode else "☀️"
 if st.button(btn_label):
     st.session_state.dark_mode = not st.session_state.dark_mode
     st.rerun()
-
-live_df, mkt_data = fetch_market_realtime()
-
-def draw_chart(series):
-    fig = go.Figure(data=go.Scatter(y=series, mode='lines', line=dict(color='#ff4b4b', width=2)))
-    fig.update_layout(height=45, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False, yaxis_visible=False, 
-                      paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False
