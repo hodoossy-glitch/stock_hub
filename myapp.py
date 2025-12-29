@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timezone, timedelta
 import time
 
-# 1. 페이지 설정 및 디자인 (기존 다크 틀 보존)
+# 1. 페이지 설정 및 디자인 (선생님의 다크 틀 100% 보존)
 st.set_page_config(page_title="딱-뉴스 황금키", layout="wide", initial_sidebar_state="collapsed")
 now = datetime.now(timezone(timedelta(hours=9)))
 
@@ -35,11 +35,27 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 실시간 데이터 수집 엔진 (에러 수정 완료)
+# 2. 실시간 데이터 수집 엔진 (에러 수정 및 3초 갱신)
 @st.cache_data(ttl=3)
 def fetch_market_realtime():
     try:
+        # KRX 전종목 실시간 긁기
         df = fdr.StockListing('KRX')
         for col in ['ChangesRatio', 'Chg', 'Rate', 'Change']:
             if col in df.columns:
-                df['Chg_Fix'] =
+                df['Chg_Fix'] = df[col]
+                break
+        
+        # 지수 현재가 및 히스토리 긁기
+        ks = fdr.DataReader('KS11').tail(20)
+        kq = fdr.DataReader('KQ11').tail(20)
+        
+        # [에러 해결] 중괄호와 수식의 짝을 완벽하게 닫음
+        m_data = {
+            "KOSPI": {
+                "val": ks['Close'].iloc[-1], 
+                "chg": ((ks['Close'].iloc[-1]/ks['Close'].iloc[-2])-1)*100, 
+                "hist": ks['Close']
+            },
+            "KOSDAQ": {
+                "val": kq['
