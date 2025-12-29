@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timezone, timedelta
 import time
 
-# 1. 페이지 설정 및 전문가용 다크 스타일 (프레임 완벽 복구)
+# 1. 전문가용 다크 스타일 (선생님의 기존 프레임 100% 복구)
 st.set_page_config(page_title="딱-뉴스 황금키", layout="wide", initial_sidebar_state="collapsed")
 now = datetime.now(timezone(timedelta(hours=9)))
 
@@ -22,7 +22,7 @@ st.markdown(f"""
     <style>
     [data-testid="stSidebar"] {{ display: none; }}
     .stApp {{ background-color: {bg_color} !important; color: {text_color} !important; }}
-    .stButton > button {{ position: fixed; top: 5px; right: 5px; z-index: 1000; padding: 0px 5px; font-size: 10px; background: transparent; border: 1px solid #444; }}
+    .stButton > button {{ position: fixed; top: 5px; right: 5px; z-index: 1000; padding: 2px 5px; font-size: 10px; background: transparent; border: 1px solid #444; }}
     .m-header {{ background-color: {header_bg}; padding: 10px; border-radius: 12px; border: 1px solid {border_color}; text-align: center; margin-bottom: 5px; }}
     .big-num {{ font-size: 24px; font-weight: bold; color: #ff4b4b; }}
     .stock-card {{ background-color: {card_bg}; padding: 10px; border-radius: 10px; border: 1px solid {border_color}; text-align: center; min-height: 100px; }}
@@ -35,14 +35,12 @@ st.markdown(f"""
 @st.cache_data(ttl=3)
 def fetch_now_data():
     try:
-        # 전종목 실시간 스캔
         df = fdr.StockListing('KRX')
         for col in ['ChangesRatio', 'Chg', 'Rate', 'Change']:
             if col in df.columns:
                 df['Chg_Fix'] = df[col]
                 break
         
-        # 지수 데이터 긁기
         ks = fdr.DataReader('KS11').tail(20)
         kq = fdr.DataReader('KQ11').tail(20)
         
@@ -68,7 +66,7 @@ def draw_chart(series):
                       paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
     return fig
 
-# 3. 탭 구성 (프레임 100% 유지)
+# 3. 탭 구성
 tab1, tab2, tab3, tab4 = st.tabs(["주도섹터", "대금상위", "캘린더", "공시"])
 
 with tab1:
@@ -96,7 +94,7 @@ with tab1:
                             st.markdown(f'''<div class="stock-card"><b>{row["Name"]}</b><br>
                             <span class="price-up">{int(row["Close"]):,}원</span><br>
                             <small>{row.get("Chg_Fix", 0.0):+.2f}%</small><br>
-                            <span class="amt-label">{amt}</span></div>''', unsafe_allow_html=True)
+                            <span class="amt-label">대금: {amt}</span></div>''', unsafe_allow_html=True)
 
 with tab2:
     st.markdown("### 💰 거래대금 상위 Top 9")
@@ -106,3 +104,12 @@ with tab2:
         for i in range(9):
             with cols_9[i % 3]:
                 if i < len(top_9):
+                    s = top_9.iloc[i]
+                    amt = f"{int(s.get('Amount', 0)/1e8):,}억"
+                    st.markdown(f'''<div class="stock-card" style="border-top: 3px solid #ff4b4b;">
+                        <b>{s["Name"]}</b><br><span class="price-up">{int(s["Close"]):,}원</span><br>
+                        <small>{s.get("Chg_Fix", 0.0):+.2f}%</small><br>
+                        <span class="amt-label">대금: {amt}</span></div>''', unsafe_allow_html=True)
+
+time.sleep(3)
+st.rerun()
