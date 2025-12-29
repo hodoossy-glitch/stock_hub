@@ -39,4 +39,16 @@ st.markdown(f"""
 @st.cache_data(ttl=3)
 def fetch_market_realtime():
     try:
-        # 전 종목 리스트
+        df = fdr.StockListing('KRX')
+        # 에러 났던 부분: 리스트를 안전하게 구성
+        for col in ['ChangesRatio', 'Chg', 'Rate', 'Change']:
+            if col in df.columns:
+                df['Chg_Fix'] = df[col]
+                break
+        
+        ks = fdr.DataReader('KS11').tail(20)
+        kq = fdr.DataReader('KQ11').tail(20)
+        
+        m_data = {
+            "KOSPI": {"val": ks['Close'].iloc[-1], "chg": ((ks['Close'].iloc[-1]/ks['Close'].iloc[-2])-1)*100, "hist": ks['Close'], "amt": "집계중"},
+            "KOSDAQ": {"val": kq['Close'].iloc[-1], "chg": ((kq['Close'].iloc[-1]/kq['Close'].iloc[-2])-1)*1
