@@ -31,31 +31,4 @@ st.markdown(f"""
     .big-num {{ font-size: 24px; font-weight: bold; color: #ff4b4b; }}
     .stock-card {{ background-color: {card_bg}; padding: 10px; border-radius: 10px; border: 1px solid {border_color}; text-align: center; min-height: 100px; }}
     .price-up {{ color: #ff4b4b; font-weight: bold; font-size: 16px; }}
-    .amt-label {{ color: #888888; font-size: 10px; display: block; margin-top: 4px; }}
-    </style>
-    """, unsafe_allow_html=True)
-
-# 2. 실시간 데이터 수집 엔진 (에러 수정 및 3초 갱신)
-@st.cache_data(ttl=3)
-def fetch_market_realtime():
-    try:
-        # KRX 전종목 실시간 긁기
-        df = fdr.StockListing('KRX')
-        for col in ['ChangesRatio', 'Chg', 'Rate', 'Change']:
-            if col in df.columns:
-                df['Chg_Fix'] = df[col]
-                break
-        
-        # 지수 현재가 및 히스토리 긁기
-        ks = fdr.DataReader('KS11').tail(20)
-        kq = fdr.DataReader('KQ11').tail(20)
-        
-        # [에러 해결] 중괄호와 수식의 짝을 완벽하게 닫음
-        m_data = {
-            "KOSPI": {
-                "val": ks['Close'].iloc[-1], 
-                "chg": ((ks['Close'].iloc[-1]/ks['Close'].iloc[-2])-1)*100, 
-                "hist": ks['Close']
-            },
-            "KOSDAQ": {
-                "val": kq['
+    .amt-label {{ color: #888888; font-size: 10px; display: block; margin-top: 4
