@@ -5,114 +5,68 @@ import plotly.graph_objects as go
 from datetime import datetime, timezone, timedelta
 import time
 
-# 1. 전문가용 다크 스타일 (선생님의 기존 디자인 100% 고정)
-st.set_page_config(page_title="딱-뉴스 황금키", layout="wide", initial_sidebar_state="collapsed")
+# 1. 페이지 기본 설정
+st.set_page_config(page_title="딱-뉴스 황금키", layout="wide")
 now = datetime.now(timezone(timedelta(hours=9)))
 
-if 'dark_mode' not in st.session_state:
-    st.session_state.dark_mode = True
-
-bg_color = "#0e1117" if st.session_state.dark_mode else "#ffffff"
-text_color = "#ffffff" if st.session_state.dark_mode else "#222222"
-header_bg = "#1c2128" if st.session_state.dark_mode else "#f8f9fa"
-card_bg = "#161b22" if st.session_state.dark_mode else "#ffffff"
-border_color = "#30363d" if st.session_state.dark_mode else "#eeeeee"
-
-st.markdown(f"""
+# 디자인 스타일 (최소화)
+st.markdown("""
     <style>
-    [data-testid="stSidebar"] {{ display: none; }}
-    .stApp {{ background-color: {bg_color} !important; color: {text_color} !important; }}
-    .stButton > button {{ position: fixed; top: 5px; right: 5px; z-index: 1000; padding: 2px 5px; font-size: 10px; background: transparent; border: 1px solid #444; }}
-    .m-header {{ background-color: {header_bg}; padding: 10px; border-radius: 12px; border: 1px solid {border_color}; text-align: center; margin-bottom: 5px; }}
-    .big-num {{ font-size: 24px; font-weight: bold; color: #ff4b4b; }}
-    .stock-card {{ background-color: {card_bg}; padding: 10px; border-radius: 10px; border: 1px solid {border_color}; text-align: center; min-height: 100px; }}
-    .price-up {{ color: #ff4b4b; font-weight: bold; font-size: 16px; }}
-    .amt-label {{ color: #888888; font-size: 10px; display: block; margin-top: 4px; }}
+    .stock-card { background-color: #161b22; padding: 10px; border-radius: 10px; border: 1px solid #30363d; text-align: center; margin-bottom: 10px; }
+    .price-up { color: #ff4b4b; font-weight: bold; font-size: 18px; }
+    .amt-label { color: #888888; font-size: 12px; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 실시간 데이터 엔진 (초단위 강제 갱신)
-@st.cache_data(ttl=1) # 1초 뒤 자동 만료
-def fetch_realtime_emergency():
+# 2. 데이터 수집 함수 (가장 안전한 방식)
+@st.cache_data(ttl=2)
+def get_data():
     try:
-        # KRX 전체 종목 데이터 스캔
+        # 전종목 시세 긁기
         df = fdr.StockListing('KRX')
-        for col in ['ChangesRatio', 'Chg', 'Rate', 'Change']:
-            if col in df.columns:
-                df['Chg_Fix'] = df[col]
-                break
-        
         # 지수 데이터 긁기
-        ks = fdr.DataReader('KS11').tail(20)
-        kq = fdr.DataReader('KQ11').tail(20)
-        
-        m_data = {
-            "KOSPI": {"val": ks['Close'].iloc[-1], "chg": ((ks['Close'].iloc[-1]/ks['Close'].iloc[-2])-1)*100, "hist": ks['Close']},
-            "KOSDAQ": {"val": kq['Close'].iloc[-1], "chg": ((kq['Close'].iloc[-1]/kq['Close'].iloc[-2])-1)*100, "hist": kq['Close']}
-        }
-        return df, m_data
+        ks = fdr.DataReader('KS11').tail(1)
+        kq = fdr.DataReader('KQ11').tail(1)
+        return df, ks, kq
     except:
-        # 에러 시 빈 값 대신 기존 구조 유지하여 화면 멈춤 방지
-        return pd.DataFrame(), {}
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-# 상단 버튼 (모드 전환)
-if st.button("☀️" if st.session_state.dark_mode else "🌙"):
-    st.session_state.dark_mode = not st.session_state.dark_mode
-    st.rerun()
+st.title(f"📡 황금키 실시간 상황판 ({now.strftime('%H:%M:%S')})")
 
-live_df, mkt_data = fetch_realtime_emergency()
+df, ks, kq = get_data()
 
-def draw_chart(series):
-    fig = go.Figure(data=go.Scatter(y=series, mode='lines', line=dict(color='#ff4b4b', width=2)))
-    fig.update_layout(height=45, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False, yaxis_visible=False, 
-                      paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
-    return fig
+# 3. 상단 지수 표시
+c1, c2 = st.columns(2)
+with c1:
+    if not ks.empty:
+        st.metric("KOSPI", f"{ks['Close'].iloc[-1]:,.2f}")
+with c2:
+    if not kq.empty:
+        st.metric("KOSDAQ", f"{kq['Close'].iloc[-1]:,.2f}")
 
-# 3. 탭 구성
-tab1, tab2, tab3, tab4 = st.tabs(["주도섹터", "대금상위", "캘린더", "공시"])
+# 4. 주도주 포착 (거래대금 순)
+st.divider()
+st.subheader("🔥 실시간 거래대금 상위 종목")
 
-with tab1:
-    st.markdown(f"### 📡 실시간 지수 ({now.strftime('%H:%M:%S')})")
-    if not mkt_data:
-        st.info("🔄 실시간 데이터를 연결 중입니다...")
+if not df.empty:
+    # 거래대금(Amount) 상위 12개 추출
+    top_df = df.sort_values('Amount', ascending=False).head(12)
     
-    c1, c2 = st.columns(2)
-    for idx, (m_key, m_name) in enumerate([("KOSPI", "KOSPI"), ("KOSDAQ", "KOSDAQ")]):
-        t = mkt_data.get(m_key, {})
-        with [c1, c2][idx]:
-            st.markdown(f'''<div class="m-header"><b>{m_name}</b><br><span class="big-num">{t.get("val", 0):,.2f}</span><br>
-                <small style="color:#ff4b4b;">▲ {t.get("chg", 0):.2f}%</small></div>''', unsafe_allow_html=True)
-            if "hist" in t: st.plotly_chart(draw_chart(t["hist"]), use_container_width=True, config={'displayModeBar': False})
+    cols = st.columns(4)
+    for i in range(12):
+        with cols[i % 4]:
+            row = top_df.iloc[i]
+            amt = f"{int(row['Amount']/1e8):,}억"
+            st.markdown(f"""
+                <div class="stock-card">
+                    <div style="font-weight:bold; font-size:16px;">{row['Name']}</div>
+                    <div class="price-up">{int(row['Close']):,}원</div>
+                    <div class="amt-label">대금: {amt}</div>
+                </div>
+            """, unsafe_allow_html=True)
+else:
+    st.error("데이터를 긁어오지 못했습니다. 잠시 후 자동 재시도합니다.")
 
-    st.divider()
-    st.markdown("### 🔥 섹터 주도주 (실시간 9격자)")
-    for s_name in ["반도체", "로봇", "바이오"]:
-        with st.expander(f"📂 {s_name} | 수급 분석", expanded=True):
-            cols = st.columns(3)
-            if not live_df.empty:
-                s_stocks = live_df[live_df['Name'].str.contains(s_name, na=False)].sort_values('Amount', ascending=False).head(9)
-                for i in range(len(s_stocks)):
-                    with cols[i % 3]:
-                        row = s_stocks.iloc[i]
-                        amt = f"{int(row.get('Amount', 0)/1e8)}억"
-                        st.markdown(f'''<div class="stock-card"><b>{row["Name"]}</b><br>
-                        <span class="price-up">{int(row["Close"]):,}원</span><br>
-                        <small>{row.get("Chg_Fix", 0.0):+.2f}%</small><br>
-                        <span class="amt-label">{amt}</span></div>''', unsafe_allow_html=True)
-
-with tab2:
-    st.markdown("### 💰 실시간 거래대금 Top 9")
-    if not live_df.empty:
-        top_9 = live_df.sort_values('Amount', ascending=False).head(9)
-        cols_9 = st.columns(3)
-        for i in range(len(top_9)):
-            with cols_9[i % 3]:
-                s = top_9.iloc[i]
-                amt = f"{int(s.get('Amount', 0)/1e8):,}억"
-                st.markdown(f'''<div class="stock-card" style="border-top: 3px solid #ff4b4b;">
-                    <b>{s["Name"]}</b><br><span class="price-up">{int(s["Close"]):,}원</span><br>
-                    <small>{s.get("Chg_Fix", 0.0):+.2f}%</small><br>
-                    <span class="amt-label">대금: {amt}</span></div>''', unsafe_allow_html=True)
-
-time.sleep(1)
+# 2초마다 강제 새로고침
+time.sleep(2)
 st.rerun()
