@@ -22,7 +22,7 @@ st.markdown(f"""
     <style>
     [data-testid="stSidebar"] {{ display: none; }}
     .stApp {{ background-color: {bg_color} !important; color: {text_color} !important; }}
-    .stButton > button {{ position: fixed; top: 5px; right: 5px; z-index: 1000; padding: 0px 5px; font-size: 10px; background: transparent; border: 1px solid #444; }}
+    .stButton > button {{ position: fixed; top: 5px; right: 5px; z-index: 1000; padding: 2px 5px; font-size: 10px; background: transparent; border: 1px solid #444; }}
     .m-header {{ background-color: {header_bg}; padding: 10px; border-radius: 12px; border: 1px solid {border_color}; text-align: center; margin-bottom: 5px; }}
     .big-num {{ font-size: 24px; font-weight: bold; color: #ff4b4b; }}
     .stock-card {{ background-color: {card_bg}; padding: 10px; border-radius: 10px; border: 1px solid {border_color}; text-align: center; min-height: 100px; }}
@@ -90,32 +90,4 @@ with tab1:
     st.divider()
     st.markdown("### 🔥 주도 섹터 (실시간 포착)")
     for s_name in ["반도체", "로봇", "바이오"]:
-        with st.expander(f"📂 {s_name} | 수급 분석", expanded=True):
-            cols = st.columns(3)
-            if not live_df.empty:
-                s_stocks = live_df[live_df['Name'].str.contains(s_name, na=False)].sort_values('Amount', ascending=False).head(9)
-                for i in range(len(s_stocks)):
-                    with cols[i % 3]:
-                        row = s_stocks.iloc[i]
-                        amt = f"{int(row.get('Amount', 0)/1e8)}억"
-                        st.markdown(f'''<div class="stock-card"><b>{row["Name"]}</b><br>
-                        <span class="price-up">{int(row["Close"]):,}원</span><br>
-                        <small>{row.get("Chg_Fix", 0.0):+.2f}%</small><br>
-                        <span class="amt-label">{amt}</span></div>''', unsafe_allow_html=True)
-
-with tab2:
-    st.markdown("### 💰 실시간 거래대금 Top 9")
-    if not live_df.empty:
-        top_9 = live_df.sort_values('Amount', ascending=False).head(9)
-        cols_9 = st.columns(3)
-        for i in range(len(top_9)):
-            with cols_9[i % 3]:
-                s = top_9.iloc[i]
-                amt = f"{int(s.get('Amount', 0)/1e8):,}억"
-                st.markdown(f'''<div class="stock-card" style="border-top: 3px solid #ff4b4b;">
-                    <b>{s["Name"]}</b><br><span class="price-up">{int(s["Close"]):,}원</span><br>
-                    <small>{s.get("Chg_Fix", 0.0):+.2f}%</small><br>
-                    <span class="amt-label">대금: {amt}</span></div>''', unsafe_allow_html=True)
-
-time.sleep(1) # 초단위 갱신
-st.rerun()
+        with st.expander(f"📂 {s_name} | 수
