@@ -36,11 +36,11 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 실시간 데이터 수집 엔진 (3초 갱신 + 괄호 에러 완벽 해결)
+# 2. 실시간 데이터 수집 엔진 (3초 갱신 + 중괄호 에러 해결)
 @st.cache_data(ttl=3)
 def fetch_market_realtime():
     try:
-        # KRX 종목 리스트 실시간 긁기
+        # KRX 종목 리스트 실시간 수집
         df = fdr.StockListing('KRX')
         target_col = None
         for col in ['ChangesRatio', 'Chg', 'Rate', 'Change']:
@@ -49,10 +49,11 @@ def fetch_market_realtime():
                 break
         df['Chg_Fix'] = df[target_col] if target_col else 0.0
         
-        # [에러 해결] DataReader와 tail의 괄호를 정확히 닫았습니다.
+        # 지수 실시간 데이터
         ks = fdr.DataReader('KS11').tail(20)
         kq = fdr.DataReader('KQ11').tail(20)
         
+        # [에러 해결] m_data 중괄호 및 내부 짝을 정확하게 닫았습니다.
         m_data = {
             "KOSPI": {
                 "val": ks['Close'].iloc[-1], 
@@ -64,3 +65,20 @@ def fetch_market_realtime():
                 "chg": ((kq['Close'].iloc[-1]/kq['Close'].iloc[-2])-1)*100, 
                 "hist": kq['Close']
             }
+        }
+        return df, m_data
+    except:
+        return pd.DataFrame(), {}
+
+# 모드 전환 버튼
+btn_label = "🌙" if not st.session_state.dark_mode else "☀️"
+if st.button(btn_label):
+    st.session_state.dark_mode = not st.session_state.dark_mode
+    st.rerun()
+
+live_df, mkt_data = fetch_market_realtime()
+
+def draw_chart(series):
+    fig = go.Figure(data=go.Scatter(y=series, mode='lines', line=dict(color='#ff4b4b', width=2)))
+    fig.update_layout(height=45, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False, yaxis_visible=False, 
+                      paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False
