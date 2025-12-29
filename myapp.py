@@ -5,14 +5,13 @@ import plotly.graph_objects as go
 from datetime import datetime, timezone, timedelta
 import time
 
-# 1. 페이지 설정 및 디자인 (선생님의 다크 프레임 100% 보존)
+# 1. 페이지 설정 및 전문가용 다크 스타일 (프레임 완벽 복구)
 st.set_page_config(page_title="딱-뉴스 황금키", layout="wide", initial_sidebar_state="collapsed")
 now = datetime.now(timezone(timedelta(hours=9)))
 
 if 'dark_mode' not in st.session_state:
     st.session_state.dark_mode = True
 
-# 테마 색상 변수 설정
 bg_color = "#0e1117" if st.session_state.dark_mode else "#ffffff"
 text_color = "#ffffff" if st.session_state.dark_mode else "#222222"
 header_bg = "#1c2128" if st.session_state.dark_mode else "#f8f9fa"
@@ -23,11 +22,7 @@ st.markdown(f"""
     <style>
     [data-testid="stSidebar"] {{ display: none; }}
     .stApp {{ background-color: {bg_color} !important; color: {text_color} !important; }}
-    /* 우측 상단 모드 전환 버튼 (작고 심플하게) */
-    .stButton > button {{ 
-        position: fixed; top: 5px; right: 5px; z-index: 1000; 
-        padding: 0px 5px; font-size: 10px; background: transparent; color: #888; border: 1px solid #444;
-    }}
+    .stButton > button {{ position: fixed; top: 5px; right: 5px; z-index: 1000; padding: 0px 5px; font-size: 10px; background: transparent; border: 1px solid #444; }}
     .m-header {{ background-color: {header_bg}; padding: 10px; border-radius: 12px; border: 1px solid {border_color}; text-align: center; margin-bottom: 5px; }}
     .big-num {{ font-size: 24px; font-weight: bold; color: #ff4b4b; }}
     .stock-card {{ background-color: {card_bg}; padding: 10px; border-radius: 10px; border: 1px solid {border_color}; text-align: center; min-height: 100px; }}
@@ -36,42 +31,78 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 실시간 데이터 수집 엔진 (3초 갱신 + 중괄호 에러 해결)
+# 2. 실시간 데이터 엔진 (장중 멈춤 방지 정밀 검수)
 @st.cache_data(ttl=3)
-def fetch_market_realtime():
+def fetch_now_data():
     try:
-        # KRX 종목 리스트 실시간 수집
+        # 전종목 실시간 스캔
         df = fdr.StockListing('KRX')
-        target_col = None
         for col in ['ChangesRatio', 'Chg', 'Rate', 'Change']:
             if col in df.columns:
-                target_col = col
+                df['Chg_Fix'] = df[col]
                 break
-        df['Chg_Fix'] = df[target_col] if target_col else 0.0
         
-        # 지수 실시간 데이터
+        # 지수 데이터 긁기
         ks = fdr.DataReader('KS11').tail(20)
         kq = fdr.DataReader('KQ11').tail(20)
         
-        # [에러 해결] m_data 중괄호 및 내부 짝을 정확하게 닫았습니다.
         m_data = {
-            "KOSPI": {
-                "val": ks['Close'].iloc[-1], 
-                "chg": ((ks['Close'].iloc[-1]/ks['Close'].iloc[-2])-1)*100, 
-                "hist": ks['Close']
-            },
-            "KOSDAQ": {
-                "val": kq['Close'].iloc[-1], 
-                "chg": ((kq['Close'].iloc[-1]/kq['Close'].iloc[-2])-1)*100, 
-                "hist": kq['Close']
-            }
+            "KOSPI": {"val": ks['Close'].iloc[-1], "chg": ((ks['Close'].iloc[-1]/ks['Close'].iloc[-2])-1)*100, "hist": ks['Close']},
+            "KOSDAQ": {"val": kq['Close'].iloc[-1], "chg": ((kq['Close'].iloc[-1]/kq['Close'].iloc[-2])-1)*100, "hist": kq['Close']}
         }
         return df, m_data
     except:
         return pd.DataFrame(), {}
 
 # 모드 전환 버튼
-btn_label = "🌙" if not st.session_state.dark_mode else "☀️"
+btn_label = "☀️" if st.session_state.dark_mode else "🌙"
 if st.button(btn_label):
     st.session_state.dark_mode = not st.session_state.dark_mode
     st.rerun()
+
+live_df, mkt_data = fetch_now_data()
+
+def draw_chart(series):
+    fig = go.Figure(data=go.Scatter(y=series, mode='lines', line=dict(color='#ff4b4b', width=2)))
+    fig.update_layout(height=45, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False, yaxis_visible=False, 
+                      paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
+    return fig
+
+# 3. 탭 구성 (프레임 100% 유지)
+tab1, tab2, tab3, tab4 = st.tabs(["주도섹터", "대금상위", "캘린더", "공시"])
+
+with tab1:
+    st.markdown(f"### 📡 실시간 지표 ({now.strftime('%H:%M:%S')})")
+    c1, c2 = st.columns(2)
+    for idx, (m_key, m_name) in enumerate([("KOSPI", "KOSPI"), ("KOSDAQ", "KOSDAQ")]):
+        t = mkt_data.get(m_key, {})
+        with [c1, c2][idx]:
+            st.markdown(f'''<div class="m-header"><b>{m_name}</b><br><span class="big-num">{t.get("val", 0):,.2f}</span><br>
+                <small style="color:#ff4b4b;">▲ {t.get("chg", 0):.2f}%</small></div>''', unsafe_allow_html=True)
+            if "hist" in t: st.plotly_chart(draw_chart(t["hist"]), use_container_width=True, config={'displayModeBar': False})
+
+    st.divider()
+    st.markdown("### 🔥 섹터 주도주 (실시간 9격자)")
+    for s_name in ["반도체", "로봇", "바이오"]:
+        with st.expander(f"📂 {s_name} | 수급 분석 중", expanded=True):
+            cols = st.columns(3)
+            if not live_df.empty:
+                s_stocks = live_df[live_df['Name'].str.contains(s_name, na=False)].sort_values('Amount', ascending=False).head(9)
+                for i in range(9):
+                    with cols[i % 3]:
+                        if i < len(s_stocks):
+                            row = s_stocks.iloc[i]
+                            amt = f"{int(row.get('Amount', 0)/1e8)}억"
+                            st.markdown(f'''<div class="stock-card"><b>{row["Name"]}</b><br>
+                            <span class="price-up">{int(row["Close"]):,}원</span><br>
+                            <small>{row.get("Chg_Fix", 0.0):+.2f}%</small><br>
+                            <span class="amt-label">{amt}</span></div>''', unsafe_allow_html=True)
+
+with tab2:
+    st.markdown("### 💰 거래대금 상위 Top 9")
+    if not live_df.empty:
+        top_9 = live_df.sort_values('Amount', ascending=False).head(9)
+        cols_9 = st.columns(3)
+        for i in range(9):
+            with cols_9[i % 3]:
+                if i < len(top_9):
