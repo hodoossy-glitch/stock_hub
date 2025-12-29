@@ -19,6 +19,7 @@ header_bg = "#1c2128" if st.session_state.dark_mode else "#f8f9fa"
 card_bg = "#161b22" if st.session_state.dark_mode else "#ffffff"
 border_color = "#30363d" if st.session_state.dark_mode else "#eeeeee"
 
+# [에러 해결] 삼중 따옴표를 정확하게 닫았습니다.
 st.markdown(f"""
     <style>
     [data-testid="stSidebar"] {{ display: none; }}
@@ -31,4 +32,20 @@ st.markdown(f"""
     .big-num {{ font-size: 24px; font-weight: bold; color: #ff4b4b; }}
     .stock-card {{ background-color: {card_bg}; padding: 10px; border-radius: 10px; border: 1px solid {border_color}; text-align: center; min-height: 100px; }}
     .price-up {{ color: #ff4b4b; font-weight: bold; font-size: 16px; }}
-    .amt-label {{ color: #888888; font-size: 10px; display: block; margin-top: 4
+    .amt-label {{ color: #888888; font-size: 10px; display: block; margin-top: 4px; }}
+    </style>
+    """, unsafe_allow_html=True)
+
+# 2. 실시간 데이터 수집 엔진 (3초 갱신)
+@st.cache_data(ttl=3)
+def fetch_market_realtime():
+    try:
+        df = fdr.StockListing('KRX')
+        target_col = None
+        for col in ['ChangesRatio', 'Chg', 'Rate', 'Change']:
+            if col in df.columns:
+                target_col = col
+                break
+        df['Chg_Fix'] = df[target_col] if target_col else 0.0
+        
+        ks = fdr.DataReader('KS11').tail(
